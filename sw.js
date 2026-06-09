@@ -1,8 +1,9 @@
-const cacheName = "keepsake-calendar-v1";
+const cacheName = "keepsake-calendar-v2";
 const assets = [
   "./",
   "./index.html",
   "./styles.css",
+  "./config.js",
   "./app.js",
   "./manifest.webmanifest",
   "./icon-192.png",

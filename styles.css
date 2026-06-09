@@ -64,6 +64,34 @@ button {
   letter-spacing: 0;
 }
 
+.sync-status {
+  width: fit-content;
+  margin: 9px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: rgba(255, 255, 255, .04);
+  color: var(--muted);
+  font-size: .74rem;
+  font-weight: 800;
+}
+
+.sync-status[data-status="synced"] {
+  border-color: rgba(117, 213, 200, .32);
+  color: var(--teal);
+}
+
+.sync-status[data-status="saving"],
+.sync-status[data-status="loading"] {
+  border-color: rgba(255, 208, 107, .3);
+  color: var(--amber);
+}
+
+.sync-status[data-status="error"] {
+  border-color: rgba(255, 111, 116, .35);
+  color: var(--danger);
+}
+
 h1, h2, p { margin-top: 0; }
 
 h1 {

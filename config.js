@@ -1,0 +1,2 @@
+window.KEEPSAKE_SCRIPT_URL = "";
+window.KEEPSAKE_SYNC_TOKEN = "";

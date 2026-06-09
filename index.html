@@ -18,6 +18,7 @@
         <div>
           <p class="eyebrow">Keepsake</p>
           <h1 id="monthTitle">Calendar</h1>
+          <p class="sync-status" id="syncText" data-status="loading">Loading reminders</p>
         </div>
         <div class="top-actions">
           <button class="icon-btn" id="prevMonth" aria-label="Previous month" title="Previous month">
@@ -125,6 +126,14 @@
           </button>
         </div>
         <label>
+          Google Apps Script URL
+          <input id="scriptUrl" type="url" placeholder="https://script.google.com/macros/s/..." />
+        </label>
+        <label>
+          Sync passcode
+          <input id="syncToken" autocomplete="off" placeholder="Optional but recommended" />
+        </label>
+        <label>
           Email address
           <input id="emailAddress" type="email" placeholder="you@gmail.com" />
         </label>
@@ -132,12 +141,18 @@
           Reminder time
           <input id="reminderTime" type="time" value="04:00" />
         </label>
-        <p class="small-copy">The app saves this setting, but automatic email needs the included Google Apps Script or another tiny backend.</p>
+        <label>
+          Timezone
+          <input id="timezone" autocomplete="off" placeholder="Africa/Johannesburg" />
+        </label>
+        <p class="small-copy">Reminders and settings sync to Google Sheets once the Apps Script URL is set.</p>
         <button class="primary-btn" id="saveSettings">Save settings</button>
+        <button class="text-btn wide" id="syncNow">Sync from Google</button>
         <button class="text-btn wide" id="exportData">Export backup</button>
       </section>
     </template>
 
+    <script src="config.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

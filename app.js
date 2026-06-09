@@ -1,16 +1,29 @@
-const storeKey = "keepsake-calendar-v1";
-const settingsKey = "keepsake-settings-v1";
+const cacheKey = "keepsake-calendar-cache-v2";
+const endpointKey = "keepsake-script-url-v1";
+const tokenKey = "keepsake-sync-token-v1";
+
+const defaultSettings = {
+  email: "",
+  reminderTime: "04:00",
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Johannesburg"
+};
 
 const state = {
   visibleDate: new Date(),
-  selectedPanel: "calendar",
-  events: loadEvents(),
-  settings: loadSettings()
+  events: [],
+  settings: { ...defaultSettings },
+  sync: {
+    endpoint: getConfiguredEndpoint(),
+    token: getConfiguredToken(),
+    status: "loading",
+    message: "Loading reminders"
+  }
 };
 
 const monthTitle = document.querySelector("#monthTitle");
 const calendarGrid = document.querySelector("#calendarGrid");
 const agendaList = document.querySelector("#agendaList");
+const syncText = document.querySelector("#syncText");
 const modal = document.querySelector("#modal");
 const eventForm = document.querySelector("#eventForm");
 const eventId = document.querySelector("#eventId");
@@ -21,9 +34,7 @@ const eventRepeat = document.querySelector("#eventRepeat");
 const eventNotes = document.querySelector("#eventNotes");
 const deleteBtn = document.querySelector("#deleteBtn");
 
-function loadEvents() {
-  const saved = localStorage.getItem(storeKey);
-  if (saved) return JSON.parse(saved);
+function starterEvents() {
   return [
     {
       id: crypto.randomUUID(),
@@ -52,18 +63,108 @@ function loadEvents() {
   ];
 }
 
-function loadSettings() {
-  const saved = localStorage.getItem(settingsKey);
-  if (saved) return JSON.parse(saved);
-  return { email: "", reminderTime: "04:00" };
+function getConfiguredEndpoint() {
+  const saved = localStorage.getItem(endpointKey) || "";
+  const bundled = window.KEEPSAKE_SCRIPT_URL || "";
+  return saved.trim() || bundled.trim();
 }
 
-function saveEvents() {
-  localStorage.setItem(storeKey, JSON.stringify(state.events));
+function getConfiguredToken() {
+  const saved = localStorage.getItem(tokenKey) || "";
+  const bundled = window.KEEPSAKE_SYNC_TOKEN || "";
+  return saved.trim() || bundled.trim();
 }
 
-function saveSettings() {
-  localStorage.setItem(settingsKey, JSON.stringify(state.settings));
+function loadCache() {
+  const saved = localStorage.getItem(cacheKey);
+  if (!saved) return { events: starterEvents(), settings: { ...defaultSettings } };
+  try {
+    const parsed = JSON.parse(saved);
+    return {
+      events: Array.isArray(parsed.events) ? parsed.events : starterEvents(),
+      settings: { ...defaultSettings, ...(parsed.settings || {}) }
+    };
+  } catch {
+    return { events: starterEvents(), settings: { ...defaultSettings } };
+  }
+}
+
+function saveCache() {
+  localStorage.setItem(cacheKey, JSON.stringify({ events: state.events, settings: state.settings }));
+}
+
+function setSync(status, message) {
+  state.sync.status = status;
+  state.sync.message = message;
+  if (syncText) {
+    syncText.textContent = message;
+    syncText.dataset.status = status;
+  }
+}
+
+function jsonp(url, timeout = 12000) {
+  return new Promise((resolve, reject) => {
+    const callback = `keepsakeCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement("script");
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error("Sync timed out"));
+    }, timeout);
+
+    function cleanup() {
+      clearTimeout(timer);
+      script.remove();
+      delete window[callback];
+    }
+
+    window[callback] = (payload) => {
+      cleanup();
+      resolve(payload);
+    };
+
+    const separator = url.includes("?") ? "&" : "?";
+    script.src = `${url}${separator}callback=${encodeURIComponent(callback)}&token=${encodeURIComponent(state.sync.token)}&t=${Date.now()}`;
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("Could not reach Google Apps Script"));
+    };
+    document.head.append(script);
+  });
+}
+
+async function loadRemoteData() {
+  if (!state.sync.endpoint) {
+    setSync("local", "Local only");
+    return;
+  }
+
+  setSync("loading", "Syncing");
+  const payload = await jsonp(`${state.sync.endpoint}?action=load`);
+  if (!payload || payload.ok === false) throw new Error(payload?.error || "Sync failed");
+
+  state.events = Array.isArray(payload.events) ? payload.events : [];
+  state.settings = { ...defaultSettings, ...(payload.settings || {}) };
+  saveCache();
+  setSync("synced", "Synced");
+}
+
+async function saveRemoteData() {
+  saveCache();
+  rerender();
+  if (!state.sync.endpoint) {
+    setSync("local", "Saved on this device");
+    return;
+  }
+
+  setSync("saving", "Saving");
+  const payload = JSON.stringify({ action: "saveAll", token: state.sync.token, events: state.events, settings: state.settings });
+  await fetch(state.sync.endpoint, {
+    method: "POST",
+    mode: "no-cors",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: payload
+  });
+  setSync("synced", "Saved to Google");
 }
 
 function isoDate(date) {
@@ -154,8 +255,7 @@ function renderCalendar() {
   calendarGrid.innerHTML = "";
 
   const startOffset = first.getDay();
-  const cells = 42;
-  for (let index = 0; index < cells; index += 1) {
+  for (let index = 0; index < 42; index += 1) {
     const date = new Date(year, month, index - startOffset + 1);
     const cell = document.createElement("button");
     cell.className = "day-cell";
@@ -197,10 +297,7 @@ function renderAgenda() {
     agendaList.innerHTML = '<p class="empty">No reminders yet.</p>';
     return;
   }
-
-  items.forEach((item) => {
-    agendaList.append(agendaItem(item.event, item.date));
-  });
+  items.forEach((item) => agendaList.append(agendaItem(item.event, item.date)));
 }
 
 function agendaItem(event, date) {
@@ -281,14 +378,35 @@ function renderSettingsPanel() {
   closeOverlay();
   const fragment = document.querySelector("#settingsPanelTemplate").content.cloneNode(true);
   const panel = fragment.querySelector(".overlay-panel");
+  panel.querySelector("#scriptUrl").value = state.sync.endpoint;
+  panel.querySelector("#syncToken").value = state.sync.token;
   panel.querySelector("#emailAddress").value = state.settings.email;
   panel.querySelector("#reminderTime").value = state.settings.reminderTime;
-  panel.querySelector("#saveSettings").addEventListener("click", () => {
+  panel.querySelector("#timezone").value = state.settings.timezone;
+
+  panel.querySelector("#saveSettings").addEventListener("click", async () => {
+    state.sync.endpoint = panel.querySelector("#scriptUrl").value.trim();
+    state.sync.token = panel.querySelector("#syncToken").value.trim();
+    localStorage.setItem(endpointKey, state.sync.endpoint);
+    localStorage.setItem(tokenKey, state.sync.token);
     state.settings.email = panel.querySelector("#emailAddress").value.trim();
     state.settings.reminderTime = panel.querySelector("#reminderTime").value;
-    saveSettings();
+    state.settings.timezone = panel.querySelector("#timezone").value.trim() || defaultSettings.timezone;
+    await saveRemoteData().catch((error) => setSync("error", error.message));
     closeOverlay();
   });
+
+  panel.querySelector("#syncNow").addEventListener("click", async () => {
+    state.sync.endpoint = panel.querySelector("#scriptUrl").value.trim();
+    state.sync.token = panel.querySelector("#syncToken").value.trim();
+    localStorage.setItem(endpointKey, state.sync.endpoint);
+    localStorage.setItem(tokenKey, state.sync.token);
+    await loadRemoteData()
+      .then(rerender)
+      .catch((error) => setSync("error", error.message));
+    closeOverlay();
+  });
+
   panel.querySelector("#exportData").addEventListener("click", exportData);
   panel.querySelector("[data-close-panel]").addEventListener("click", closeOverlay);
   document.body.append(panel);
@@ -331,7 +449,7 @@ eventKind.addEventListener("change", () => {
   if (eventKind.value === "anniversary" && eventRepeat.value === "once") eventRepeat.value = "yearly";
 });
 
-eventForm.addEventListener("submit", (event) => {
+eventForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const payload = {
     id: eventId.value || crypto.randomUUID(),
@@ -344,17 +462,15 @@ eventForm.addEventListener("submit", (event) => {
   const index = state.events.findIndex((item) => item.id === payload.id);
   if (index >= 0) state.events[index] = payload;
   else state.events.push(payload);
-  saveEvents();
   modal.close();
-  rerender();
+  await saveRemoteData().catch((error) => setSync("error", error.message));
 });
 
-deleteBtn.addEventListener("click", () => {
+deleteBtn.addEventListener("click", async () => {
   if (!eventId.value) return;
   state.events = state.events.filter((item) => item.id !== eventId.value);
-  saveEvents();
   modal.close();
-  rerender();
+  await saveRemoteData().catch((error) => setSync("error", error.message));
 });
 
 document.querySelectorAll(".dock-item").forEach((button) => {
@@ -367,8 +483,19 @@ document.querySelectorAll(".dock-item").forEach((button) => {
   });
 });
 
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js").catch(() => {});
+async function boot() {
+  const cached = loadCache();
+  state.events = cached.events;
+  state.settings = cached.settings;
+  rerender();
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+
+  await loadRemoteData()
+    .then(rerender)
+    .catch((error) => setSync("error", state.sync.endpoint ? error.message : "Local only"));
 }
 
-rerender();
+boot();
