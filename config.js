@@ -1,2 +1,2 @@
-window.KEEPSAKE_SCRIPT_URL = "";
-window.KEEPSAKE_SYNC_TOKEN = "";
+window.THE_CALENDAR_SCRIPT_URL = "";
+window.THE_CALENDAR_SYNC_TOKEN = "";

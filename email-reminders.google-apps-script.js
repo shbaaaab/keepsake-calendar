@@ -10,16 +10,18 @@ const DEFAULT_SETTINGS = {
 };
 
 const ACCESS_TOKEN = "";
-const EVENT_HEADERS = ["id", "name", "date", "kind", "repeat", "notes", "updatedAt"];
+const CHABAD_JOHANNESBURG_URL = "https://www.chabad.org/calendar/candlelighting_cdo/locationId/248/locationType/1/jewish/Candle-Lighting.htm";
+const EVENT_HEADERS = ["id", "name", "date", "repeat", "notes", "photo", "updatedAt"];
 const SETTING_HEADERS = ["key", "value"];
 
 function doGet(event) {
   try {
-    setupKeepsakeSheets();
+    setupCalendarSheets();
     requireAccess(event.parameter.token || "");
     const action = event.parameter.action || "load";
-    if (action !== "load") throw new Error("Unknown action: " + action);
-    return jsonOutput(loadAllData(), event.parameter.callback);
+    if (action === "load") return jsonOutput(loadAllData(), event.parameter.callback);
+    if (action === "testEmail") return jsonOutput(sendTestEmail(event.parameter.email || ""), event.parameter.callback);
+    throw new Error("Unknown action: " + action);
   } catch (error) {
     return jsonOutput({ ok: false, error: error.message }, event.parameter.callback);
   }
@@ -27,7 +29,7 @@ function doGet(event) {
 
 function doPost(event) {
   try {
-    setupKeepsakeSheets();
+    setupCalendarSheets();
     const payload = JSON.parse(event.postData.contents || "{}");
     requireAccess(payload.token || "");
     if (payload.action !== "saveAll") throw new Error("Unknown action: " + payload.action);
@@ -38,25 +40,52 @@ function doPost(event) {
   }
 }
 
-function setupKeepsakeSheets() {
+function setupCalendarSheets() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const eventsSheet = getOrCreateSheet(spreadsheet, SHEETS.events);
   const settingsSheet = getOrCreateSheet(spreadsheet, SHEETS.settings);
-  ensureHeaders(eventsSheet, EVENT_HEADERS);
+  migrateEventsSheet(eventsSheet);
   ensureHeaders(settingsSheet, SETTING_HEADERS);
 
   if (eventsSheet.getLastRow() === 1) {
     const now = new Date().toISOString();
     eventsSheet.getRange(2, 1, 3, EVENT_HEADERS.length).setValues([
-      [Utilities.getUuid(), "Dating anniversary", "2026-01-08", "anniversary", "monthly", "Change this date to your real start date.", now],
-      [Utilities.getUuid(), "Engagement anniversary", "2026-02-14", "anniversary", "yearly", "", now],
-      [Utilities.getUuid(), "Wedding anniversary", "2026-06-08", "anniversary", "yearly", "", now]
+      [Utilities.getUuid(), "Dating anniversary", "2026-01-08", "monthly", "Change this date to your real start date.", "", now],
+      [Utilities.getUuid(), "Engagement anniversary", "2026-02-14", "yearly", "", "", now],
+      [Utilities.getUuid(), "Wedding anniversary", "2026-06-08", "yearly", "", "", now]
     ]);
   }
 
   const settings = readSettings(settingsSheet);
   if (!settings.reminderTime) writeSetting(settingsSheet, "reminderTime", DEFAULT_SETTINGS.reminderTime);
   if (!settings.timezone) writeSetting(settingsSheet, "timezone", DEFAULT_SETTINGS.timezone);
+}
+
+function migrateEventsSheet(sheet) {
+  const values = sheet.getDataRange().getValues();
+  if (!values.length || sheet.getLastRow() === 0) {
+    ensureHeaders(sheet, EVENT_HEADERS);
+    return;
+  }
+
+  const headers = values[0].map(String);
+  if (headers.join("|") === EVENT_HEADERS.join("|")) return;
+
+  const index = (name) => headers.indexOf(name);
+  const rows = values.slice(1)
+    .filter((row) => row[index("id")] || row[index("name")])
+    .map((row) => [
+      row[index("id")] || Utilities.getUuid(),
+      row[index("name")] || "",
+      normalizeDate(row[index("date")] || new Date()),
+      row[index("repeat")] || "yearly",
+      row[index("notes")] || "",
+      index("photo") >= 0 ? row[index("photo")] || "" : "",
+      row[index("updatedAt")] || new Date().toISOString()
+    ]);
+  sheet.clearContents();
+  sheet.getRange(1, 1, 1, EVENT_HEADERS.length).setValues([EVENT_HEADERS]);
+  if (rows.length) sheet.getRange(2, 1, rows.length, EVENT_HEADERS.length).setValues(rows);
 }
 
 function requireAccess(token) {
@@ -71,7 +100,8 @@ function loadAllData() {
   return {
     ok: true,
     events: readEvents(eventsSheet),
-    settings: Object.assign({}, DEFAULT_SETTINGS, readSettings(settingsSheet))
+    settings: Object.assign({}, DEFAULT_SETTINGS, readSettings(settingsSheet)),
+    shabbat: getCachedShabbatTimes()
   };
 }
 
@@ -89,9 +119,9 @@ function saveAllData(events, settings) {
       event.id || Utilities.getUuid(),
       event.name,
       event.date,
-      event.kind || "anniversary",
       event.repeat || "yearly",
       event.notes || "",
+      event.photo || "",
       now
     ]);
   if (rows.length) eventsSheet.getRange(2, 1, rows.length, EVENT_HEADERS.length).setValues(rows);
@@ -101,8 +131,21 @@ function saveAllData(events, settings) {
   });
 }
 
-function sendTodaysKeepsakeReminders() {
-  setupKeepsakeSheets();
+function sendTestEmail(email) {
+  const settings = Object.assign({}, DEFAULT_SETTINGS, readSettings(SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.settings)));
+  const recipient = email || settings.email;
+  if (!recipient) throw new Error("No email address configured");
+  GmailApp.sendEmail(
+    recipient,
+    "The Calendar test email",
+    "This is a test email from The Calendar. If this arrived, Gmail sending is working."
+  );
+  if (email && email !== settings.email) writeSetting(SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.settings), "email", email);
+  return { ok: true, sentTo: recipient };
+}
+
+function sendTodaysCalendarReminders() {
+  setupCalendarSheets();
   const data = loadAllData();
   const settings = Object.assign({}, DEFAULT_SETTINGS, data.settings);
   if (!settings.email) return;
@@ -115,34 +158,73 @@ function sendTodaysKeepsakeReminders() {
   const lines = due.map((event) => "- " + labelFor(event, today));
   GmailApp.sendEmail(
     settings.email,
-    "Keepsake reminder for " + todayText,
+    "The Calendar reminder for " + todayText,
     "Today:\n\n" + lines.join("\n")
   );
 }
 
-function createKeepsakeMorningTrigger() {
+function createCalendarMorningTrigger() {
   ScriptApp.getProjectTriggers()
-    .filter((trigger) => trigger.getHandlerFunction() === "sendTodaysKeepsakeReminders")
+    .filter((trigger) => trigger.getHandlerFunction() === "sendTodaysCalendarReminders")
     .forEach((trigger) => ScriptApp.deleteTrigger(trigger));
-  ScriptApp.newTrigger("sendTodaysKeepsakeReminders")
+  ScriptApp.newTrigger("sendTodaysCalendarReminders")
     .timeBased()
     .everyDays(1)
     .atHour(4)
     .create();
 }
 
+function getCachedShabbatTimes() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get("chabad-johannesburg-current-week");
+  if (cached) return JSON.parse(cached);
+
+  const html = UrlFetchApp.fetch(CHABAD_JOHANNESBURG_URL, { muteHttpExceptions: true }).getContentText();
+  const times = parseChabadTimes(html);
+  cache.put("chabad-johannesburg-current-week", JSON.stringify(times), 21600);
+  return times;
+}
+
+function parseChabadTimes(html) {
+  const plain = html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ");
+  const inMatch = plain.match(/Light Candles at\s+(\d{1,2}:\d{2})\s*([AP]M)/i);
+  const outMatch = plain.match(/Shabbat Ends\s+(\d{1,2}:\d{2})\s*([AP]M)/i);
+  return {
+    in: inMatch ? to24Hour(inMatch[1], inMatch[2]) : "--:--",
+    out: outMatch ? to24Hour(outMatch[1], outMatch[2]) : "--:--",
+    source: "Chabad.org/ShabbatTimes Johannesburg",
+    sourceUrl: CHABAD_JOHANNESBURG_URL,
+    cachedAt: new Date().toISOString()
+  };
+}
+
+function to24Hour(time, meridiem) {
+  const parts = time.split(":").map(Number);
+  let hour = parts[0];
+  if (/PM/i.test(meridiem) && hour !== 12) hour += 12;
+  if (/AM/i.test(meridiem) && hour === 12) hour = 0;
+  return String(hour).padStart(2, "0") + ":" + String(parts[1]).padStart(2, "0");
+}
+
 function readEvents(sheet) {
   const values = sheet.getDataRange().getValues();
   if (values.length <= 1) return [];
+  const headers = values[0].map(String);
+  const column = (name) => headers.indexOf(name);
   return values.slice(1)
-    .filter((row) => row[0] && row[1] && row[2])
+    .filter((row) => row[column("id")] && row[column("name")] && row[column("date")])
     .map((row) => ({
-      id: String(row[0]),
-      name: String(row[1]),
-      date: normalizeDate(row[2]),
-      kind: String(row[3] || "anniversary"),
-      repeat: String(row[4] || "yearly"),
-      notes: String(row[5] || "")
+      id: String(row[column("id")]),
+      name: String(row[column("name")]),
+      date: normalizeDate(row[column("date")]),
+      repeat: String(row[column("repeat")] || "yearly"),
+      notes: String(row[column("notes")] || ""),
+      photo: String(row[column("photo")] || "")
     }));
 }
 
@@ -216,7 +298,6 @@ function isDueToday(event, today) {
 }
 
 function labelFor(event, today) {
-  if (event.kind === "birthday") return event.name + " birthday";
   const start = parseDate(event.date);
   const months = (today.getFullYear() - start.getFullYear()) * 12 + today.getMonth() - start.getMonth();
   if (event.repeat === "monthly" && months > 0) {
@@ -226,7 +307,7 @@ function labelFor(event, today) {
     return years + " year" + (years === 1 ? "" : "s") + (remaining ? " " + remaining + " month" + (remaining === 1 ? "" : "s") : "") + " " + event.name;
   }
   const years = today.getFullYear() - start.getFullYear();
-  return years > 0 ? ordinal(years) + " " + event.name : event.name;
+  return years > 0 && event.repeat === "yearly" ? ordinal(years) + " " + event.name : event.name;
 }
 
 function ordinal(value) {

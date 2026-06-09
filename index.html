@@ -6,8 +6,8 @@
     <meta name="theme-color" content="#101114" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Keepsake" />
-    <title>Keepsake Calendar</title>
+    <meta name="apple-mobile-web-app-title" content="The Calendar" />
+    <title>The Calendar</title>
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="apple-touch-icon" href="icon-192.png" />
     <link rel="stylesheet" href="styles.css" />
@@ -16,7 +16,7 @@
     <main class="app-shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Keepsake</p>
+          <p class="eyebrow">The Calendar</p>
           <h1 id="monthTitle">Calendar</h1>
           <p class="sync-status" id="syncText" data-status="loading">Loading reminders</p>
         </div>
@@ -31,34 +31,66 @@
         </div>
       </header>
 
-      <section class="calendar-panel" aria-label="Calendar month">
-        <div class="weekday-row">
-          <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
-        </div>
-        <div class="calendar-grid" id="calendarGrid"></div>
-      </section>
+      <section class="layout-grid">
+        <aside class="side-panel next-panel" aria-label="Upcoming reminders">
+          <div class="section-head">
+            <h2>Next Up</h2>
+            <button class="icon-btn soft" id="openAdd" aria-label="Add reminder" title="Add reminder">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </div>
+          <div class="shabbat-card" id="shabbatCard">
+            <p class="mini-label">Johannesburg</p>
+            <div class="shabbat-row"><span>Shabbas in</span><strong id="shabbatIn">--:--</strong></div>
+            <div class="shabbat-row"><span>Shabbas out</span><strong id="shabbatOut">--:--</strong></div>
+            <p class="small-copy" id="shabbatSource">Chabad.org/ShabbatTimes</p>
+          </div>
+          <div class="agenda-list" id="agendaList"></div>
+          <div class="day-detail" id="dayDetail">
+            <p class="mini-label">Day Details</p>
+            <p class="empty compact">Tap a reminder on the calendar.</p>
+          </div>
+        </aside>
 
-      <section class="agenda-panel" aria-label="Upcoming reminders">
-        <div class="section-head">
-          <h2>Next Up</h2>
-          <button class="icon-btn soft" id="openAdd" aria-label="Add reminder" title="Add reminder">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          </button>
-        </div>
-        <div class="agenda-list" id="agendaList"></div>
-      </section>
+        <section class="calendar-panel" aria-label="Calendar month">
+          <div class="weekday-row">
+            <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Shabbas</span>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </section>
 
-      <nav class="dock" aria-label="App tools">
-        <button class="dock-item active" data-panel="calendar" aria-label="Calendar" title="Calendar">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2v3M17 2v3M3.5 9h17M5 4h14a1.5 1.5 0 0 1 1.5 1.5v14A1.5 1.5 0 0 1 19 21H5a1.5 1.5 0 0 1-1.5-1.5v-14A1.5 1.5 0 0 1 5 4Z"/></svg>
-        </button>
-        <button class="dock-item" data-panel="list" aria-label="Reminder list" title="Reminder list">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-        </button>
-        <button class="dock-item" data-panel="settings" aria-label="Settings" title="Settings">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.04.04a2 2 0 1 1-2.83 2.83l-.04-.04a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.1 1.66V21a2 2 0 1 1-4 0v-.06A1.8 1.8 0 0 0 8.7 19.3a1.8 1.8 0 0 0-1.98.36l-.04.04a2 2 0 1 1-2.83-2.83l.04-.04A1.8 1.8 0 0 0 4.25 15a1.8 1.8 0 0 0-1.66-1.1H2.5a2 2 0 1 1 0-4h.06A1.8 1.8 0 0 0 4.2 8.7a1.8 1.8 0 0 0-.36-1.98l-.04-.04a2 2 0 1 1 2.83-2.83l.04.04A1.8 1.8 0 0 0 8.65 4.2a1.8 1.8 0 0 0 1.1-1.66V2.5a2 2 0 1 1 4 0v.06A1.8 1.8 0 0 0 14.9 4.2a1.8 1.8 0 0 0 1.98-.36l.04-.04a2 2 0 1 1 2.83 2.83l-.04.04A1.8 1.8 0 0 0 19.4 8.7a1.8 1.8 0 0 0 1.66 1.1h.04a2 2 0 1 1 0 4h-.06A1.8 1.8 0 0 0 19.4 15Z"/></svg>
-        </button>
-      </nav>
+        <aside class="side-panel settings-panel" aria-label="Settings">
+          <div class="section-head">
+            <h2>Settings</h2>
+          </div>
+          <label>
+            Google Apps Script URL
+            <input id="scriptUrl" type="url" placeholder="https://script.google.com/macros/s/..." />
+          </label>
+          <label>
+            Sync passcode
+            <input id="syncToken" autocomplete="off" placeholder="Optional but recommended" />
+          </label>
+          <label>
+            Email address
+            <input id="emailAddress" type="email" placeholder="you@gmail.com" />
+          </label>
+          <label>
+            Reminder time
+            <input id="reminderTime" type="time" value="04:00" />
+          </label>
+          <label>
+            Timezone
+            <input id="timezone" autocomplete="off" placeholder="Africa/Johannesburg" />
+          </label>
+          <p class="small-copy">Reminders, photos, settings, and Shabbas times sync through Google Sheets once the Apps Script URL is set.</p>
+          <button class="primary-btn" id="saveSettings">Save settings</button>
+          <button class="text-btn wide" id="syncNow">Sync from Google</button>
+          <button class="text-btn wide" id="sendTestEmail">Send Test Email</button>
+          <button class="text-btn wide" id="exportData">Export backup</button>
+          <p class="settings-result" id="settingsResult" role="status"></p>
+        </aside>
+      </section>
     </main>
 
     <dialog id="modal" class="modal">
@@ -70,6 +102,7 @@
           </button>
         </div>
         <input type="hidden" id="eventId" />
+        <input type="hidden" id="eventPhotoData" />
         <label>
           Name
           <input id="eventName" autocomplete="off" placeholder="Wedding anniversary" required />
@@ -79,17 +112,9 @@
           <input id="eventDate" type="date" required />
         </label>
         <label>
-          Kind
-          <select id="eventKind">
-            <option value="anniversary">Anniversary</option>
-            <option value="birthday">Birthday</option>
-            <option value="custom">Other</option>
-          </select>
-        </label>
-        <label>
-          Repeats
+          Repeat
           <select id="eventRepeat">
-            <option value="monthly">Monthly anniversary</option>
+            <option value="monthly">Monthly</option>
             <option value="yearly" selected>Yearly</option>
             <option value="once">Once</option>
           </select>
@@ -98,59 +123,17 @@
           Notes
           <textarea id="eventNotes" rows="3" placeholder="Gift ideas, plans, anything useful"></textarea>
         </label>
+        <label>
+          Photo
+          <input id="eventPhoto" type="file" accept="image/*" />
+        </label>
+        <div class="photo-preview hidden" id="photoPreview"></div>
         <div class="form-actions">
           <button type="button" class="danger-btn hidden" id="deleteBtn">Delete</button>
           <button class="primary-btn" id="saveBtn" value="default">Save</button>
         </div>
       </form>
     </dialog>
-
-    <template id="listPanelTemplate">
-      <section class="overlay-panel" aria-label="All reminders">
-        <div class="section-head">
-          <h2>Reminders</h2>
-          <button class="icon-btn soft" data-close-panel aria-label="Close" title="Close">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-          </button>
-        </div>
-        <div id="allEvents"></div>
-      </section>
-    </template>
-
-    <template id="settingsPanelTemplate">
-      <section class="overlay-panel" aria-label="Settings">
-        <div class="section-head">
-          <h2>Settings</h2>
-          <button class="icon-btn soft" data-close-panel aria-label="Close" title="Close">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-          </button>
-        </div>
-        <label>
-          Google Apps Script URL
-          <input id="scriptUrl" type="url" placeholder="https://script.google.com/macros/s/..." />
-        </label>
-        <label>
-          Sync passcode
-          <input id="syncToken" autocomplete="off" placeholder="Optional but recommended" />
-        </label>
-        <label>
-          Email address
-          <input id="emailAddress" type="email" placeholder="you@gmail.com" />
-        </label>
-        <label>
-          Reminder time
-          <input id="reminderTime" type="time" value="04:00" />
-        </label>
-        <label>
-          Timezone
-          <input id="timezone" autocomplete="off" placeholder="Africa/Johannesburg" />
-        </label>
-        <p class="small-copy">Reminders and settings sync to Google Sheets once the Apps Script URL is set.</p>
-        <button class="primary-btn" id="saveSettings">Save settings</button>
-        <button class="text-btn wide" id="syncNow">Sync from Google</button>
-        <button class="text-btn wide" id="exportData">Export backup</button>
-      </section>
-    </template>
 
     <script src="config.js"></script>
     <script src="app.js"></script>

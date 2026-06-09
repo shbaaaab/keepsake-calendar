@@ -1,6 +1,6 @@
-# Keepsake Calendar
+# The Calendar
 
-Keepsake is a small installable calendar app for birthdays, dating anniversaries, engagement anniversaries, wedding anniversaries, and other reminders.
+The Calendar is a small installable calendar app for birthdays, anniversaries, notes, photos, and Johannesburg Shabbas times.
 
 The recommended setup is:
 
@@ -8,14 +8,25 @@ The recommended setup is:
 GitHub Pages app -> Google Apps Script -> Google Sheet + Gmail
 ```
 
-That keeps the app free, iPhone-friendly, backed up in Google Sheets, and able to send reliable morning Gmail reminders.
+That keeps the app free, iPhone-friendly, backed up in Google Sheets, and able to send reliable Gmail messages.
 
 ## Files
 
 - `index.html`, `styles.css`, `app.js`: the app
 - `config.js`: optional place to paste your Apps Script web-app URL
 - `manifest.webmanifest`, `sw.js`, icons: iPhone home-screen/PWA support
-- `email-reminders.google-apps-script.js`: Google Sheets + Gmail backend
+- `email-reminders.google-apps-script.js`: Google Sheets + Gmail + Shabbas backend
+
+## Current Features
+
+- Three-panel layout: Next Up, calendar, settings
+- Empty calendar days do nothing when tapped
+- Event days show the relevant reminders
+- Countdown labels in Next Up
+- Reminder photos, compressed in the browser before saving
+- Google Sheets sync for reminders, settings, and photos
+- Chabad Johannesburg Shabbas candle-lighting and Havdalah times
+- Test email button in Settings
 
 ## 1. Publish The App
 
@@ -25,23 +36,23 @@ After GitHub Pages is enabled, open the GitHub Pages URL in Safari on your iPhon
 
 1. Tap Share.
 2. Tap Add to Home Screen.
-3. Name it Keepsake.
+3. Name it The Calendar.
 
 ## 2. Create The Google Sheet Backend
 
 1. Go to Google Sheets.
-2. Create a blank spreadsheet named `Keepsake Calendar`.
+2. Create a blank spreadsheet named `The Calendar`.
 3. Open Extensions -> Apps Script.
 4. Delete the starter code.
 5. Paste the full contents of `email-reminders.google-apps-script.js`.
 6. Optional but recommended: set `ACCESS_TOKEN` near the top of the script to a private passcode.
 7. Save the Apps Script project.
-8. Run `setupKeepsakeSheets` once.
+8. Run `setupCalendarSheets` once.
 9. Approve the Google permissions.
 
-The script creates two tabs:
+The script creates or migrates two tabs:
 
-- `Events`: all reminders
+- `Events`: reminders, notes, repeat frequency, and compressed photo data
 - `Settings`: email, reminder time, timezone
 
 ## 3. Deploy Apps Script As A Web App
@@ -63,16 +74,14 @@ https://script.google.com/macros/s/AKfycb.../exec
 
 ## 4. Connect The App
 
-You have two options.
-
 Option A, easiest:
 
-1. Open Keepsake.
-2. Tap Settings.
-3. Paste the Apps Script URL.
-4. Paste the sync passcode if you set `ACCESS_TOKEN`.
-5. Add your Gmail address.
-6. Save settings.
+1. Open The Calendar.
+2. Paste the Apps Script URL in Settings.
+3. Paste the sync passcode if you set `ACCESS_TOKEN`.
+4. Add your Gmail address.
+5. Save settings.
+6. Tap Send Test Email.
 
 Option B, best before publishing:
 
@@ -80,25 +89,38 @@ Option B, best before publishing:
 2. Paste the URL like this:
 
 ```js
-window.KEEPSAKE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycb.../exec";
-window.KEEPSAKE_SYNC_TOKEN = "your-private-passcode";
+window.THE_CALENDAR_SCRIPT_URL = "https://script.google.com/macros/s/AKfycb.../exec";
+window.THE_CALENDAR_SYNC_TOKEN = "your-private-passcode";
 ```
 
 3. Commit and push the updated file.
 
 Only put the sync token in `config.js` if the GitHub repository is private. If the repository is public, enter the passcode inside the app settings instead.
 
-## 5. Turn On 4am Email Reminders
+## 5. Email
 
-In Apps Script:
+The current email workflow is intentionally simple:
 
-1. Run `createKeepsakeMorningTrigger` once.
-2. Approve permissions if asked.
+1. Configure the Apps Script URL.
+2. Configure the email address.
+3. Tap Send Test Email.
 
-The trigger calls `sendTodaysKeepsakeReminders` every day around 4am. Apps Script time triggers are reliable but not exact to the minute, so Google may run it shortly before or after 4am.
+Once test emails are reliable, reminder emails can be expanded further.
 
-## Notes
+The older daily reminder function is still available as `sendTodaysCalendarReminders`. To enable it manually, run `createCalendarMorningTrigger` once in Apps Script. Google time triggers run near the selected hour, not always exactly on the minute.
 
-The app keeps a local cache so it can still open quickly. Google Sheets becomes the real source of truth once the Apps Script URL is configured.
+## 6. Shabbas Times
 
-Push notifications can be added later, but Gmail reminders through Apps Script are the simpler and more reliable first version for iPhone.
+The Calendar fetches Johannesburg candle-lighting and Havdalah times from Chabad.org:
+
+```text
+https://www.chabad.org/calendar/candlelighting_cdo/locationId/248/locationType/1/jewish/Candle-Lighting.htm
+```
+
+The source label should remain visible as `Chabad.org/ShabbatTimes Johannesburg`.
+
+Apps Script uses `UrlFetchApp` to fetch the Chabad page and `CacheService` to cache the current result for 6 hours. The app also caches the last synced Shabbas times locally so it still has something to display if temporarily offline.
+
+## Notes On Photos
+
+Photos are resized and saved as compressed JPEG data before syncing. This is simple and works without extra storage services, but Google Sheets is not ideal for large photo libraries. Keep photos small and use one photo per reminder.

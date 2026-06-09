@@ -1,17 +1,18 @@
-const cacheKey = "keepsake-calendar-cache-v2";
-const endpointKey = "keepsake-script-url-v1";
-const tokenKey = "keepsake-sync-token-v1";
+const cacheKey = "the-calendar-cache-v3";
+const endpointKey = "the-calendar-script-url-v1";
+const tokenKey = "the-calendar-sync-token-v1";
 
 const defaultSettings = {
   email: "",
   reminderTime: "04:00",
-  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Johannesburg"
+  timezone: "Africa/Johannesburg"
 };
 
 const state = {
   visibleDate: new Date(),
   events: [],
   settings: { ...defaultSettings },
+  shabbat: null,
   sync: {
     endpoint: getConfiguredEndpoint(),
     token: getConfiguredToken(),
@@ -23,16 +24,30 @@ const state = {
 const monthTitle = document.querySelector("#monthTitle");
 const calendarGrid = document.querySelector("#calendarGrid");
 const agendaList = document.querySelector("#agendaList");
+const dayDetail = document.querySelector("#dayDetail");
 const syncText = document.querySelector("#syncText");
+const shabbatIn = document.querySelector("#shabbatIn");
+const shabbatOut = document.querySelector("#shabbatOut");
+const shabbatSource = document.querySelector("#shabbatSource");
+const settingsResult = document.querySelector("#settingsResult");
 const modal = document.querySelector("#modal");
 const eventForm = document.querySelector("#eventForm");
 const eventId = document.querySelector("#eventId");
 const eventName = document.querySelector("#eventName");
 const eventDate = document.querySelector("#eventDate");
-const eventKind = document.querySelector("#eventKind");
 const eventRepeat = document.querySelector("#eventRepeat");
 const eventNotes = document.querySelector("#eventNotes");
+const eventPhoto = document.querySelector("#eventPhoto");
+const eventPhotoData = document.querySelector("#eventPhotoData");
+const photoPreview = document.querySelector("#photoPreview");
 const deleteBtn = document.querySelector("#deleteBtn");
+const settingsFields = {
+  scriptUrl: document.querySelector("#scriptUrl"),
+  syncToken: document.querySelector("#syncToken"),
+  email: document.querySelector("#emailAddress"),
+  reminderTime: document.querySelector("#reminderTime"),
+  timezone: document.querySelector("#timezone")
+};
 
 function starterEvents() {
   return [
@@ -40,75 +55,94 @@ function starterEvents() {
       id: crypto.randomUUID(),
       name: "Dating anniversary",
       date: "2026-01-08",
-      kind: "anniversary",
       repeat: "monthly",
-      notes: "Change this date to your real start date."
+      notes: "Change this date to your real start date.",
+      photo: ""
     },
     {
       id: crypto.randomUUID(),
       name: "Engagement anniversary",
       date: "2026-02-14",
-      kind: "anniversary",
       repeat: "yearly",
-      notes: ""
+      notes: "",
+      photo: ""
     },
     {
       id: crypto.randomUUID(),
       name: "Wedding anniversary",
       date: "2026-06-08",
-      kind: "anniversary",
       repeat: "yearly",
-      notes: ""
+      notes: "",
+      photo: ""
     }
   ];
 }
 
 function getConfiguredEndpoint() {
   const saved = localStorage.getItem(endpointKey) || "";
-  const bundled = window.KEEPSAKE_SCRIPT_URL || "";
+  const bundled = window.THE_CALENDAR_SCRIPT_URL || window.KEEPSAKE_SCRIPT_URL || "";
   return saved.trim() || bundled.trim();
 }
 
 function getConfiguredToken() {
   const saved = localStorage.getItem(tokenKey) || "";
-  const bundled = window.KEEPSAKE_SYNC_TOKEN || "";
+  const bundled = window.THE_CALENDAR_SYNC_TOKEN || window.KEEPSAKE_SYNC_TOKEN || "";
   return saved.trim() || bundled.trim();
+}
+
+function normalizeEvent(event) {
+  return {
+    id: event.id || crypto.randomUUID(),
+    name: event.name || "",
+    date: event.date || isoDate(new Date()),
+    repeat: event.repeat || "yearly",
+    notes: event.notes || "",
+    photo: event.photo || ""
+  };
 }
 
 function loadCache() {
   const saved = localStorage.getItem(cacheKey);
-  if (!saved) return { events: starterEvents(), settings: { ...defaultSettings } };
+  if (!saved) return { events: starterEvents(), settings: { ...defaultSettings }, shabbat: null };
   try {
     const parsed = JSON.parse(saved);
     return {
-      events: Array.isArray(parsed.events) ? parsed.events : starterEvents(),
-      settings: { ...defaultSettings, ...(parsed.settings || {}) }
+      events: Array.isArray(parsed.events) ? parsed.events.map(normalizeEvent) : starterEvents(),
+      settings: { ...defaultSettings, ...(parsed.settings || {}) },
+      shabbat: parsed.shabbat || null
     };
   } catch {
-    return { events: starterEvents(), settings: { ...defaultSettings } };
+    return { events: starterEvents(), settings: { ...defaultSettings }, shabbat: null };
   }
 }
 
 function saveCache() {
-  localStorage.setItem(cacheKey, JSON.stringify({ events: state.events, settings: state.settings }));
+  localStorage.setItem(cacheKey, JSON.stringify({
+    events: state.events,
+    settings: state.settings,
+    shabbat: state.shabbat
+  }));
 }
 
 function setSync(status, message) {
   state.sync.status = status;
   state.sync.message = message;
-  if (syncText) {
-    syncText.textContent = message;
-    syncText.dataset.status = status;
-  }
+  syncText.textContent = message;
+  syncText.dataset.status = status;
 }
 
-function jsonp(url, timeout = 12000) {
+function setSettingsResult(status, message) {
+  settingsResult.textContent = message;
+  settingsResult.dataset.status = status;
+}
+
+function jsonp(url, timeout = 15000) {
   return new Promise((resolve, reject) => {
-    const callback = `keepsakeCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const callback = `calendarCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     const script = document.createElement("script");
     const timer = setTimeout(() => {
       cleanup();
-      reject(new Error("Sync timed out"));
+      reject(new Error("Request timed out"));
     }, timeout);
 
     function cleanup() {
@@ -142,9 +176,11 @@ async function loadRemoteData() {
   const payload = await jsonp(`${state.sync.endpoint}?action=load`);
   if (!payload || payload.ok === false) throw new Error(payload?.error || "Sync failed");
 
-  state.events = Array.isArray(payload.events) ? payload.events : [];
+  state.events = Array.isArray(payload.events) ? payload.events.map(normalizeEvent) : [];
   state.settings = { ...defaultSettings, ...(payload.settings || {}) };
+  state.shabbat = payload.shabbat || state.shabbat;
   saveCache();
+  populateSettings();
   setSync("synced", "Synced");
 }
 
@@ -157,7 +193,12 @@ async function saveRemoteData() {
   }
 
   setSync("saving", "Saving");
-  const payload = JSON.stringify({ action: "saveAll", token: state.sync.token, events: state.events, settings: state.settings });
+  const payload = JSON.stringify({
+    action: "saveAll",
+    token: state.sync.token,
+    events: state.events,
+    settings: state.settings
+  });
   await fetch(state.sync.endpoint, {
     method: "POST",
     mode: "no-cors",
@@ -165,6 +206,40 @@ async function saveRemoteData() {
     body: payload
   });
   setSync("synced", "Saved to Google");
+}
+
+async function sendTestEmail() {
+  captureSettings();
+  if (!state.settings.email) {
+    setSettingsResult("error", "Add an email address first.");
+    return;
+  }
+  if (!state.sync.endpoint) {
+    setSettingsResult("error", "Add the Apps Script URL first.");
+    return;
+  }
+  setSettingsResult("loading", "Sending test email...");
+  const payload = await jsonp(`${state.sync.endpoint}?action=testEmail&email=${encodeURIComponent(state.settings.email)}`, 20000);
+  if (!payload || payload.ok === false) throw new Error(payload?.error || "Test email failed");
+  setSettingsResult("ok", "Test email sent.");
+}
+
+function captureSettings() {
+  state.sync.endpoint = settingsFields.scriptUrl.value.trim();
+  state.sync.token = settingsFields.syncToken.value.trim();
+  localStorage.setItem(endpointKey, state.sync.endpoint);
+  localStorage.setItem(tokenKey, state.sync.token);
+  state.settings.email = settingsFields.email.value.trim();
+  state.settings.reminderTime = settingsFields.reminderTime.value;
+  state.settings.timezone = settingsFields.timezone.value.trim() || defaultSettings.timezone;
+}
+
+function populateSettings() {
+  settingsFields.scriptUrl.value = state.sync.endpoint;
+  settingsFields.syncToken.value = state.sync.token;
+  settingsFields.email.value = state.settings.email;
+  settingsFields.reminderTime.value = state.settings.reminderTime;
+  settingsFields.timezone.value = state.settings.timezone;
 }
 
 function isoDate(date) {
@@ -188,6 +263,12 @@ function sameDay(a, b) {
     a.getDate() === b.getDate();
 }
 
+function dayDiff(a, b) {
+  const first = new Date(a.getFullYear(), a.getMonth(), a.getDate());
+  const second = new Date(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.round((second - first) / 86400000);
+}
+
 function monthDiff(start, end) {
   return (end.getFullYear() - start.getFullYear()) * 12 + end.getMonth() - start.getMonth();
 }
@@ -198,25 +279,21 @@ function ordinal(value) {
   return `${value}${suffixes[(mod - 20) % 10] || suffixes[mod] || suffixes[0]}`;
 }
 
-function anniversaryLabel(event, occurrenceDate) {
+function eventLabel(event, occurrenceDate) {
+  if (event.repeat !== "monthly") {
+    const start = parseLocalDate(event.date);
+    const years = occurrenceDate.getFullYear() - start.getFullYear();
+    return years > 0 && event.repeat === "yearly" ? `${ordinal(years)} ${event.name}` : event.name;
+  }
+
   const start = parseLocalDate(event.date);
   const months = monthDiff(start, occurrenceDate);
   if (months <= 0) return event.name;
-  if (event.repeat === "monthly") {
-    if (months < 12) return `${months} month ${event.name}`;
-    const years = Math.floor(months / 12);
-    const remaining = months % 12;
-    const yearText = `${years} year${years === 1 ? "" : "s"}`;
-    return remaining ? `${yearText} ${remaining} month${remaining === 1 ? "" : "s"} ${event.name}` : `${yearText} ${event.name}`;
-  }
-  const years = occurrenceDate.getFullYear() - start.getFullYear();
-  return years > 0 ? `${ordinal(years)} ${event.name}` : event.name;
-}
-
-function eventLabel(event, occurrenceDate) {
-  if (event.kind === "birthday") return `${event.name} birthday`;
-  if (event.kind === "anniversary") return anniversaryLabel(event, occurrenceDate);
-  return event.name;
+  if (months < 12) return `${months} month ${event.name}`;
+  const years = Math.floor(months / 12);
+  const remaining = months % 12;
+  const yearText = `${years} year${years === 1 ? "" : "s"}`;
+  return remaining ? `${yearText} ${remaining} month${remaining === 1 ? "" : "s"} ${event.name}` : `${yearText} ${event.name}`;
 }
 
 function occurrenceForMonth(event, year, month) {
@@ -245,6 +322,19 @@ function occurrencesInMonth(year, month) {
     .filter((item) => item.date);
 }
 
+function formatDate(date, compact = false) {
+  return date.toLocaleDateString(undefined, compact
+    ? { weekday: "short", day: "numeric", month: "short" }
+    : { weekday: "long", day: "numeric", month: "long" });
+}
+
+function countdownText(date) {
+  const days = dayDiff(new Date(), date);
+  if (days === 0) return "Today";
+  if (days === 1) return "1 day";
+  return `${days} days`;
+}
+
 function renderCalendar() {
   const year = state.visibleDate.getFullYear();
   const month = state.visibleDate.getMonth();
@@ -257,12 +347,16 @@ function renderCalendar() {
   const startOffset = first.getDay();
   for (let index = 0; index < 42; index += 1) {
     const date = new Date(year, month, index - startOffset + 1);
+    const eventsForDay = monthEvents.filter((item) => sameDay(item.date, date));
     const cell = document.createElement("button");
     cell.className = "day-cell";
     cell.type = "button";
     if (date.getMonth() !== month) cell.classList.add("outside");
     if (sameDay(date, today)) cell.classList.add("today");
-    cell.addEventListener("click", () => openAddModal(isoDate(date)));
+    if (eventsForDay.length) {
+      cell.classList.add("has-events");
+      cell.addEventListener("click", () => renderDayDetail(date, eventsForDay));
+    }
 
     const number = document.createElement("span");
     number.className = "day-number";
@@ -271,27 +365,27 @@ function renderCalendar() {
 
     const eventsWrap = document.createElement("div");
     eventsWrap.className = "day-events";
-    monthEvents
-      .filter((item) => sameDay(item.date, date))
-      .slice(0, 3)
-      .forEach((item) => {
-        const pill = document.createElement("span");
-        pill.className = `event-pill ${item.event.kind}`;
-        pill.textContent = eventLabel(item.event, item.date);
-        eventsWrap.append(pill);
-      });
+    eventsForDay.slice(0, 3).forEach((item) => {
+      const pill = document.createElement("span");
+      pill.className = "event-pill";
+      pill.textContent = eventLabel(item.event, item.date);
+      eventsWrap.append(pill);
+    });
     cell.append(eventsWrap);
     calendarGrid.append(cell);
   }
 }
 
-function renderAgenda() {
-  const items = state.events
+function upcomingItems(limit = 50) {
+  return state.events
     .map((event) => ({ event, date: nextOccurrence(event) }))
     .filter((item) => item.date)
     .sort((a, b) => a.date - b.date)
-    .slice(0, 8);
+    .slice(0, limit);
+}
 
+function renderAgenda() {
+  const items = upcomingItems(12);
   agendaList.innerHTML = "";
   if (!items.length) {
     agendaList.innerHTML = '<p class="empty">No reminders yet.</p>';
@@ -304,9 +398,15 @@ function agendaItem(event, date) {
   const row = document.createElement("article");
   row.className = "agenda-item";
 
-  const chip = document.createElement("div");
-  chip.className = "date-chip";
-  chip.textContent = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const visual = event.photo ? document.createElement("img") : document.createElement("div");
+  if (event.photo) {
+    visual.className = "thumb";
+    visual.src = event.photo;
+    visual.alt = "";
+  } else {
+    visual.className = "date-chip";
+    visual.textContent = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
 
   const body = document.createElement("div");
   const title = document.createElement("p");
@@ -314,19 +414,76 @@ function agendaItem(event, date) {
   title.textContent = eventLabel(event, date);
   const meta = document.createElement("p");
   meta.className = "agenda-meta";
-  meta.textContent = `${date.toLocaleDateString(undefined, { weekday: "long" })} · ${event.repeat}`;
+  meta.textContent = `${formatDate(date, true)} · ${event.repeat[0].toUpperCase()}${event.repeat.slice(1)}`;
   body.append(title, meta);
 
-  const edit = document.createElement("button");
-  edit.className = "icon-btn";
-  edit.type = "button";
-  edit.ariaLabel = "Edit reminder";
-  edit.title = "Edit reminder";
-  edit.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
-  edit.addEventListener("click", () => openEditModal(event.id));
+  const countdown = document.createElement("button");
+  countdown.className = "countdown";
+  countdown.type = "button";
+  countdown.textContent = countdownText(date);
+  countdown.title = "Edit reminder";
+  countdown.addEventListener("click", () => openEditModal(event.id));
 
-  row.append(chip, body, edit);
+  row.append(visual, body, countdown);
+  row.addEventListener("click", (click) => {
+    if (click.target === countdown) return;
+    openEditModal(event.id);
+  });
   return row;
+}
+
+function renderDayDetail(date, items) {
+  dayDetail.innerHTML = "";
+  const label = document.createElement("p");
+  label.className = "mini-label";
+  label.textContent = formatDate(date);
+  const list = document.createElement("div");
+  list.className = "detail-list";
+  items
+    .sort((a, b) => a.event.name.localeCompare(b.event.name))
+    .forEach((item) => {
+      const row = document.createElement("article");
+      row.className = "detail-item";
+      const body = document.createElement("div");
+      const title = document.createElement("p");
+      title.className = "agenda-title";
+      title.textContent = eventLabel(item.event, item.date);
+      const meta = document.createElement("p");
+      meta.className = "agenda-meta";
+      meta.textContent = item.event.notes || `${item.event.repeat[0].toUpperCase()}${item.event.repeat.slice(1)}`;
+      body.append(title, meta);
+      const edit = document.createElement("button");
+      edit.className = "icon-btn";
+      edit.type = "button";
+      edit.ariaLabel = "Edit reminder";
+      edit.title = "Edit reminder";
+      edit.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+      edit.addEventListener("click", () => openEditModal(item.event.id));
+      row.append(body, edit);
+      if (item.event.photo) {
+        const photo = document.createElement("img");
+        photo.className = "thumb";
+        photo.src = item.event.photo;
+        photo.alt = "";
+        row.prepend(photo);
+        row.style.gridTemplateColumns = "54px minmax(0, 1fr) 44px";
+      }
+      list.append(row);
+    });
+  dayDetail.append(label, list);
+  dayDetail.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function renderShabbat() {
+  if (!state.shabbat) {
+    shabbatIn.textContent = "--:--";
+    shabbatOut.textContent = "--:--";
+    shabbatSource.textContent = "Chabad.org/ShabbatTimes";
+    return;
+  }
+  shabbatIn.textContent = state.shabbat.in || "--:--";
+  shabbatOut.textContent = state.shabbat.out || "--:--";
+  shabbatSource.textContent = state.shabbat.source || "Chabad.org/ShabbatTimes";
 }
 
 function openAddModal(date = isoDate(new Date())) {
@@ -334,8 +491,10 @@ function openAddModal(date = isoDate(new Date())) {
   document.querySelector("#modalTitle").textContent = "Add Reminder";
   eventId.value = "";
   eventDate.value = date;
-  eventKind.value = "anniversary";
   eventRepeat.value = "yearly";
+  eventPhotoData.value = "";
+  photoPreview.classList.add("hidden");
+  photoPreview.style.backgroundImage = "";
   deleteBtn.classList.add("hidden");
   modal.showModal();
 }
@@ -347,84 +506,58 @@ function openEditModal(id) {
   eventId.value = event.id;
   eventName.value = event.name;
   eventDate.value = event.date;
-  eventKind.value = event.kind;
   eventRepeat.value = event.repeat;
   eventNotes.value = event.notes || "";
+  eventPhotoData.value = event.photo || "";
+  if (event.photo) {
+    photoPreview.style.backgroundImage = `url("${event.photo}")`;
+    photoPreview.classList.remove("hidden");
+  } else {
+    photoPreview.style.backgroundImage = "";
+    photoPreview.classList.add("hidden");
+  }
   deleteBtn.classList.remove("hidden");
   modal.showModal();
 }
 
-function closeOverlay() {
-  document.querySelector(".overlay-panel")?.remove();
-  document.querySelectorAll(".dock-item").forEach((button) => button.classList.toggle("active", button.dataset.panel === "calendar"));
-}
-
-function renderListPanel() {
-  closeOverlay();
-  const fragment = document.querySelector("#listPanelTemplate").content.cloneNode(true);
-  const panel = fragment.querySelector(".overlay-panel");
-  const list = fragment.querySelector("#allEvents");
-  state.events
-    .map((event) => ({ event, date: nextOccurrence(event) }))
-    .filter((item) => item.date)
-    .sort((a, b) => a.date - b.date)
-    .forEach((item) => list.append(agendaItem(item.event, item.date)));
-  if (!list.children.length) list.innerHTML = '<p class="empty">No reminders yet.</p>';
-  panel.querySelector("[data-close-panel]").addEventListener("click", closeOverlay);
-  document.body.append(panel);
-}
-
-function renderSettingsPanel() {
-  closeOverlay();
-  const fragment = document.querySelector("#settingsPanelTemplate").content.cloneNode(true);
-  const panel = fragment.querySelector(".overlay-panel");
-  panel.querySelector("#scriptUrl").value = state.sync.endpoint;
-  panel.querySelector("#syncToken").value = state.sync.token;
-  panel.querySelector("#emailAddress").value = state.settings.email;
-  panel.querySelector("#reminderTime").value = state.settings.reminderTime;
-  panel.querySelector("#timezone").value = state.settings.timezone;
-
-  panel.querySelector("#saveSettings").addEventListener("click", async () => {
-    state.sync.endpoint = panel.querySelector("#scriptUrl").value.trim();
-    state.sync.token = panel.querySelector("#syncToken").value.trim();
-    localStorage.setItem(endpointKey, state.sync.endpoint);
-    localStorage.setItem(tokenKey, state.sync.token);
-    state.settings.email = panel.querySelector("#emailAddress").value.trim();
-    state.settings.reminderTime = panel.querySelector("#reminderTime").value;
-    state.settings.timezone = panel.querySelector("#timezone").value.trim() || defaultSettings.timezone;
-    await saveRemoteData().catch((error) => setSync("error", error.message));
-    closeOverlay();
-  });
-
-  panel.querySelector("#syncNow").addEventListener("click", async () => {
-    state.sync.endpoint = panel.querySelector("#scriptUrl").value.trim();
-    state.sync.token = panel.querySelector("#syncToken").value.trim();
-    localStorage.setItem(endpointKey, state.sync.endpoint);
-    localStorage.setItem(tokenKey, state.sync.token);
-    await loadRemoteData()
-      .then(rerender)
-      .catch((error) => setSync("error", error.message));
-    closeOverlay();
-  });
-
-  panel.querySelector("#exportData").addEventListener("click", exportData);
-  panel.querySelector("[data-close-panel]").addEventListener("click", closeOverlay);
-  document.body.append(panel);
-}
-
 function exportData() {
-  const payload = JSON.stringify({ events: state.events, settings: state.settings }, null, 2);
+  const payload = JSON.stringify({ events: state.events, settings: state.settings, shabbat: state.shabbat }, null, 2);
   const blob = new Blob([payload], { type: "application/json" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = "keepsake-calendar-backup.json";
+  link.download = "the-calendar-backup.json";
   link.click();
   URL.revokeObjectURL(link.href);
+}
+
+function resizePhoto(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) return resolve("");
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read photo"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Could not process photo"));
+      img.onload = () => {
+        const maxSide = 520;
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(img.width * scale));
+        canvas.height = Math.max(1, Math.round(img.height * scale));
+        const context = canvas.getContext("2d");
+        context.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL("image/jpeg", .58));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function rerender() {
   renderCalendar();
   renderAgenda();
+  renderShabbat();
 }
 
 document.querySelector("#prevMonth").addEventListener("click", () => {
@@ -444,21 +577,57 @@ document.querySelector("#todayBtn").addEventListener("click", () => {
 
 document.querySelector("#openAdd").addEventListener("click", () => openAddModal());
 
-eventKind.addEventListener("change", () => {
-  if (eventKind.value === "birthday") eventRepeat.value = "yearly";
-  if (eventKind.value === "anniversary" && eventRepeat.value === "once") eventRepeat.value = "yearly";
+document.querySelector("#saveSettings").addEventListener("click", async () => {
+  captureSettings();
+  await saveRemoteData()
+    .then(() => setSettingsResult("ok", "Settings saved."))
+    .catch((error) => {
+      setSync("error", error.message);
+      setSettingsResult("error", error.message);
+    });
+});
+
+document.querySelector("#syncNow").addEventListener("click", async () => {
+  captureSettings();
+  await loadRemoteData()
+    .then(() => {
+      rerender();
+      setSettingsResult("ok", "Synced from Google.");
+    })
+    .catch((error) => {
+      setSync("error", error.message);
+      setSettingsResult("error", error.message);
+    });
+});
+
+document.querySelector("#sendTestEmail").addEventListener("click", async () => {
+  await sendTestEmail().catch((error) => setSettingsResult("error", error.message));
+});
+
+document.querySelector("#exportData").addEventListener("click", exportData);
+
+eventPhoto.addEventListener("change", async () => {
+  const file = eventPhoto.files?.[0];
+  if (!file) return;
+  try {
+    eventPhotoData.value = await resizePhoto(file);
+    photoPreview.style.backgroundImage = `url("${eventPhotoData.value}")`;
+    photoPreview.classList.remove("hidden");
+  } catch (error) {
+    setSync("error", error.message);
+  }
 });
 
 eventForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const payload = {
+  const payload = normalizeEvent({
     id: eventId.value || crypto.randomUUID(),
     name: eventName.value.trim(),
     date: eventDate.value,
-    kind: eventKind.value,
     repeat: eventRepeat.value,
-    notes: eventNotes.value.trim()
-  };
+    notes: eventNotes.value.trim(),
+    photo: eventPhotoData.value
+  });
   const index = state.events.findIndex((item) => item.id === payload.id);
   if (index >= 0) state.events[index] = payload;
   else state.events.push(payload);
@@ -473,20 +642,12 @@ deleteBtn.addEventListener("click", async () => {
   await saveRemoteData().catch((error) => setSync("error", error.message));
 });
 
-document.querySelectorAll(".dock-item").forEach((button) => {
-  button.addEventListener("click", () => {
-    document.querySelectorAll(".dock-item").forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
-    if (button.dataset.panel === "calendar") closeOverlay();
-    if (button.dataset.panel === "list") renderListPanel();
-    if (button.dataset.panel === "settings") renderSettingsPanel();
-  });
-});
-
 async function boot() {
   const cached = loadCache();
   state.events = cached.events;
   state.settings = cached.settings;
+  state.shabbat = cached.shabbat;
+  populateSettings();
   rerender();
 
   if ("serviceWorker" in navigator) {

@@ -1,7 +1,7 @@
 {
-  "name": "Keepsake Calendar",
-  "short_name": "Keepsake",
-  "description": "A private calendar for birthdays and anniversaries.",
+  "name": "The Calendar",
+  "short_name": "The Calendar",
+  "description": "A private calendar for birthdays, anniversaries, and Shabbas times.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#101114",
