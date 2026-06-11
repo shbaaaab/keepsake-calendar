@@ -31,12 +31,14 @@ const shabbatOut = document.querySelector("#shabbatOut");
 const shabbatSource = document.querySelector("#shabbatSource");
 const settingsResult = document.querySelector("#settingsResult");
 const modal = document.querySelector("#modal");
+const dayModal = document.querySelector("#dayModal");
+const dayModalTitle = document.querySelector("#dayModalTitle");
+const dayModalList = document.querySelector("#dayModalList");
 const eventForm = document.querySelector("#eventForm");
 const eventId = document.querySelector("#eventId");
 const eventName = document.querySelector("#eventName");
 const eventDate = document.querySelector("#eventDate");
 const eventRepeat = document.querySelector("#eventRepeat");
-const eventNotes = document.querySelector("#eventNotes");
 const eventPhoto = document.querySelector("#eventPhoto");
 const eventPhotoData = document.querySelector("#eventPhotoData");
 const photoPreview = document.querySelector("#photoPreview");
@@ -56,7 +58,7 @@ function starterEvents() {
       name: "Dating anniversary",
       date: "2026-01-08",
       repeat: "monthly",
-      notes: "Change this date to your real start date.",
+      notes: "",
       photo: ""
     },
     {
@@ -263,6 +265,17 @@ function sameDay(a, b) {
     a.getDate() === b.getDate();
 }
 
+function normalizeDateInput(value) {
+  const compact = String(value || "").trim().replace(/[/.]/g, "-");
+  const match = compact.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!match) return compact;
+  return [
+    match[1],
+    match[2].padStart(2, "0"),
+    match[3].padStart(2, "0")
+  ].join("-");
+}
+
 function dayDiff(a, b) {
   const first = new Date(a.getFullYear(), a.getMonth(), a.getDate());
   const second = new Date(b.getFullYear(), b.getMonth(), b.getDate());
@@ -355,7 +368,7 @@ function renderCalendar() {
     if (sameDay(date, today)) cell.classList.add("today");
     if (eventsForDay.length) {
       cell.classList.add("has-events");
-      cell.addEventListener("click", () => renderDayDetail(date, eventsForDay));
+      cell.addEventListener("click", () => openDayPopup(date, eventsForDay));
     }
 
     const number = document.createElement("span");
@@ -371,9 +384,31 @@ function renderCalendar() {
       pill.textContent = eventLabel(item.event, item.date);
       eventsWrap.append(pill);
     });
+    shabbatItemsForDate(date).forEach((item) => {
+      const pill = document.createElement("span");
+      pill.className = `event-pill shabbat-pill ${item.type === "out" ? "shabbat-out" : "shabbat-in"}`;
+      pill.textContent = `${item.label}: ${item.time}`;
+      eventsWrap.append(pill);
+    });
     cell.append(eventsWrap);
     calendarGrid.append(cell);
   }
+}
+
+function shabbatItemsForDate(date) {
+  const entries = Array.isArray(state.shabbat?.times) ? state.shabbat.times : [];
+  const key = isoDate(date);
+  if (entries.length) return entries.filter((item) => item.date === key && item.time);
+
+  const fallback = [];
+  const today = new Date();
+  const friday = new Date(today);
+  friday.setDate(today.getDate() + ((5 - today.getDay() + 7) % 7));
+  const shabbas = new Date(friday);
+  shabbas.setDate(friday.getDate() + 1);
+  if (sameDay(date, friday) && state.shabbat?.in) fallback.push({ type: "in", label: "Shabbas in", time: state.shabbat.in });
+  if (sameDay(date, shabbas) && state.shabbat?.out) fallback.push({ type: "out", label: "Shabbas out", time: state.shabbat.out });
+  return fallback;
 }
 
 function upcomingItems(limit = 50) {
@@ -450,7 +485,7 @@ function renderDayDetail(date, items) {
       title.textContent = eventLabel(item.event, item.date);
       const meta = document.createElement("p");
       meta.className = "agenda-meta";
-      meta.textContent = item.event.notes || `${item.event.repeat[0].toUpperCase()}${item.event.repeat.slice(1)}`;
+      meta.textContent = `${item.event.repeat[0].toUpperCase()}${item.event.repeat.slice(1)}`;
       body.append(title, meta);
       const edit = document.createElement("button");
       edit.className = "icon-btn";
@@ -474,16 +509,46 @@ function renderDayDetail(date, items) {
   dayDetail.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
+function openDayPopup(date, items) {
+  renderDayDetail(date, items);
+  dayModalTitle.textContent = formatDate(date);
+  dayModalList.innerHTML = "";
+  items
+    .sort((a, b) => a.event.name.localeCompare(b.event.name))
+    .forEach((item) => {
+      const row = document.createElement("article");
+      row.className = "day-popup-item";
+      if (item.event.photo) {
+        const photo = document.createElement("img");
+        photo.className = "thumb";
+        photo.src = item.event.photo;
+        photo.alt = "";
+        row.append(photo);
+      }
+      const body = document.createElement("div");
+      const title = document.createElement("p");
+      title.className = "agenda-title";
+      title.textContent = eventLabel(item.event, item.date);
+      const meta = document.createElement("p");
+      meta.className = "agenda-meta";
+      meta.textContent = `${formatDate(item.date, true)} · ${item.event.repeat[0].toUpperCase()}${item.event.repeat.slice(1)}`;
+      body.append(title, meta);
+      row.append(body);
+      dayModalList.append(row);
+    });
+  dayModal.showModal();
+}
+
 function renderShabbat() {
   if (!state.shabbat) {
     shabbatIn.textContent = "--:--";
     shabbatOut.textContent = "--:--";
-    shabbatSource.textContent = "Chabad.org/ShabbatTimes";
+    shabbatSource.textContent = "Johannesburg times";
     return;
   }
   shabbatIn.textContent = state.shabbat.in || "--:--";
   shabbatOut.textContent = state.shabbat.out || "--:--";
-  shabbatSource.textContent = state.shabbat.source || "Chabad.org/ShabbatTimes";
+  shabbatSource.textContent = "Johannesburg times";
 }
 
 function openAddModal(date = isoDate(new Date())) {
@@ -507,7 +572,6 @@ function openEditModal(id) {
   eventName.value = event.name;
   eventDate.value = event.date;
   eventRepeat.value = event.repeat;
-  eventNotes.value = event.notes || "";
   eventPhotoData.value = event.photo || "";
   if (event.photo) {
     photoPreview.style.backgroundImage = `url("${event.photo}")`;
@@ -618,14 +682,20 @@ eventPhoto.addEventListener("change", async () => {
   }
 });
 
+eventDate.addEventListener("blur", () => {
+  eventDate.value = normalizeDateInput(eventDate.value);
+});
+
+document.querySelector("#closeDayModal").addEventListener("click", () => dayModal.close());
+
 eventForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const payload = normalizeEvent({
     id: eventId.value || crypto.randomUUID(),
     name: eventName.value.trim(),
-    date: eventDate.value,
+    date: normalizeDateInput(eventDate.value),
     repeat: eventRepeat.value,
-    notes: eventNotes.value.trim(),
+    notes: "",
     photo: eventPhotoData.value
   });
   const index = state.events.findIndex((item) => item.id === payload.id);

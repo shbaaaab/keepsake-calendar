@@ -43,7 +43,7 @@
             <p class="mini-label">Johannesburg</p>
             <div class="shabbat-row"><span>Shabbas in</span><strong id="shabbatIn">--:--</strong></div>
             <div class="shabbat-row"><span>Shabbas out</span><strong id="shabbatOut">--:--</strong></div>
-            <p class="small-copy" id="shabbatSource">Chabad.org/ShabbatTimes</p>
+            <p class="small-copy" id="shabbatSource">Johannesburg times</p>
           </div>
           <div class="agenda-list" id="agendaList"></div>
           <div class="day-detail" id="dayDetail">
@@ -109,7 +109,7 @@
         </label>
         <label>
           Date
-          <input id="eventDate" type="date" required />
+          <input id="eventDate" inputmode="numeric" pattern="\d{4}-\d{2}-\d{2}" placeholder="YYYY-MM-DD" required />
         </label>
         <label>
           Repeat
@@ -118,10 +118,6 @@
             <option value="yearly" selected>Yearly</option>
             <option value="once">Once</option>
           </select>
-        </label>
-        <label>
-          Notes
-          <textarea id="eventNotes" rows="3" placeholder="Gift ideas, plans, anything useful"></textarea>
         </label>
         <label>
           Photo
@@ -133,6 +129,18 @@
           <button class="primary-btn" id="saveBtn" value="default">Save</button>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="dayModal" class="modal day-modal">
+      <div class="modal-card">
+        <div class="section-head">
+          <h2 id="dayModalTitle">Day</h2>
+          <button class="icon-btn" id="closeDayModal" aria-label="Close" title="Close">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="day-popup-list" id="dayModalList"></div>
+      </div>
     </dialog>
 
     <script src="config.js"></script>

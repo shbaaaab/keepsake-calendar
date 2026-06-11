@@ -7,6 +7,7 @@
   --text: #f5f1e8;
   --muted: #a6a79f;
   --teal: #75d5c8;
+  --sky: #9fd7ff;
   --rose: #ff8aa3;
   --amber: #ffd06b;
   --violet: #bba3ff;
@@ -214,14 +215,14 @@ h2 {
 }
 
 .weekday-row span {
-  padding: 14px 4px;
+  padding: 15px 4px;
   color: var(--muted);
-  font-size: clamp(.86rem, 1.2vw, 1rem);
+  font-size: clamp(.98rem, 1.35vw, 1.14rem);
   font-weight: 900;
   text-align: center;
 }
 
-.weekday-row span:first-child { color: var(--rose); }
+.weekday-row span:first-child { color: var(--sky); }
 .weekday-row span:last-child { color: var(--amber); }
 
 .day-cell {
@@ -247,7 +248,7 @@ h2 {
   background: rgba(255, 255, 255, .04);
 }
 
-.day-cell:nth-child(7n + 1) .day-number { color: var(--rose); }
+.day-cell:nth-child(7n + 1) .day-number { color: var(--sky); }
 .day-cell:nth-child(7n) .day-number { color: var(--amber); }
 
 .day-cell.outside { opacity: .35; }
@@ -274,12 +275,12 @@ h2 {
 
 .event-pill {
   overflow: hidden;
-  min-height: 24px;
+  min-height: 22px;
   border-radius: 6px;
-  padding: 5px 7px;
+  padding: 4px 6px;
   background: rgba(117, 213, 200, .14);
   color: #ddfffb;
-  font-size: .72rem;
+  font-size: clamp(.62rem, .78vw, .72rem);
   font-weight: 800;
   line-height: 1.15;
   text-overflow: ellipsis;
@@ -288,6 +289,16 @@ h2 {
 
 .event-pill:hover {
   background: rgba(117, 213, 200, .23);
+}
+
+.shabbat-pill {
+  background: rgba(255, 208, 107, .13);
+  color: #ffe7aa;
+}
+
+.shabbat-out {
+  background: rgba(187, 163, 255, .13);
+  color: #e0d5ff;
 }
 
 .section-head {
@@ -416,6 +427,10 @@ h2 {
   color: var(--text);
 }
 
+.day-modal {
+  width: min(500px, calc(100% - 22px));
+}
+
 .modal::backdrop {
   background: rgba(0, 0, 0, .62);
   backdrop-filter: blur(10px);
@@ -423,6 +438,27 @@ h2 {
 
 .modal-card {
   padding: 16px;
+}
+
+.day-popup-list {
+  display: grid;
+  gap: 10px;
+}
+
+.day-popup-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 66px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--panel-2);
+}
+
+.day-popup-item:has(.thumb) {
+  grid-template-columns: 54px minmax(0, 1fr);
 }
 
 label {
@@ -521,13 +557,13 @@ input:focus, select:focus, textarea:focus {
 
   .weekday-row span {
     padding: 11px 1px;
-    font-size: .74rem;
+    font-size: .86rem;
   }
 
   .event-pill {
-    min-height: 9px;
-    padding: 0;
-    color: transparent;
+    min-height: 18px;
+    padding: 2px 3px;
+    font-size: .58rem;
   }
 
   .agenda-item {

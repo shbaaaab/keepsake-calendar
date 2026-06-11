@@ -1,6 +1,6 @@
 # The Calendar
 
-The Calendar is a small installable calendar app for birthdays, anniversaries, notes, photos, and Johannesburg Shabbas times.
+The Calendar is a small installable calendar app for birthdays, anniversaries, photos, and Johannesburg Shabbas times.
 
 The recommended setup is:
 
@@ -25,7 +25,7 @@ That keeps the app free, iPhone-friendly, backed up in Google Sheets, and able t
 - Countdown labels in Next Up
 - Reminder photos, compressed in the browser before saving
 - Google Sheets sync for reminders, settings, and photos
-- Chabad Johannesburg Shabbas candle-lighting and Havdalah times
+- Johannesburg Shabbas candle-lighting and Havdalah times
 - Test email button in Settings
 
 ## 1. Publish The App
@@ -52,7 +52,7 @@ After GitHub Pages is enabled, open the GitHub Pages URL in Safari on your iPhon
 
 The script creates or migrates two tabs:
 
-- `Events`: reminders, notes, repeat frequency, and compressed photo data
+- `Events`: reminders, repeat frequency, legacy notes, and compressed photo data
 - `Settings`: email, reminder time, timezone
 
 ## 3. Deploy Apps Script As A Web App
@@ -111,15 +111,13 @@ The older daily reminder function is still available as `sendTodaysCalendarRemin
 
 ## 6. Shabbas Times
 
-The Calendar fetches Johannesburg candle-lighting and Havdalah times from Chabad.org:
+The Calendar fetches Johannesburg candle-lighting and Havdalah times from Hebcal's JSON API:
 
 ```text
-https://www.chabad.org/calendar/candlelighting_cdo/locationId/248/locationType/1/jewish/Candle-Lighting.htm
+https://www.hebcal.com/hebcal?v=1&cfg=json&c=on&geo=geoname&geonameid=993800&M=on
 ```
 
-The source label should remain visible as `Chabad.org/ShabbatTimes Johannesburg`.
-
-Apps Script uses `UrlFetchApp` to fetch the Chabad page and `CacheService` to cache the current result for 6 hours. The app also caches the last synced Shabbas times locally so it still has something to display if temporarily offline.
+Apps Script uses `UrlFetchApp` to fetch structured yearly Johannesburg entries and `CacheService` to cache the current result for 6 hours. The app also caches the last synced Shabbas times locally so it still has something to display if temporarily offline. Hebcal API data is licensed under Creative Commons Attribution 4.0.
 
 ## Notes On Photos
 

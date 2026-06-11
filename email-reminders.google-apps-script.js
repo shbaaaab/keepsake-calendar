@@ -10,7 +10,7 @@ const DEFAULT_SETTINGS = {
 };
 
 const ACCESS_TOKEN = "";
-const CHABAD_JOHANNESBURG_URL = "https://www.chabad.org/calendar/candlelighting_cdo/locationId/248/locationType/1/jewish/Candle-Lighting.htm";
+const HEBCAL_JOHANNESBURG_URL = "https://www.hebcal.com/hebcal?v=1&cfg=json&c=on&geo=geoname&geonameid=993800&M=on&leyning=off";
 const EVENT_HEADERS = ["id", "name", "date", "repeat", "notes", "photo", "updatedAt"];
 const SETTING_HEADERS = ["key", "value"];
 
@@ -176,39 +176,40 @@ function createCalendarMorningTrigger() {
 
 function getCachedShabbatTimes() {
   const cache = CacheService.getScriptCache();
-  const cached = cache.get("chabad-johannesburg-current-week");
+  const year = new Date().getFullYear();
+  const cached = cache.get("johannesburg-shabbas-" + year);
   if (cached) return JSON.parse(cached);
 
-  const html = UrlFetchApp.fetch(CHABAD_JOHANNESBURG_URL, { muteHttpExceptions: true }).getContentText();
-  const times = parseChabadTimes(html);
-  cache.put("chabad-johannesburg-current-week", JSON.stringify(times), 21600);
+  const start = year + "-01-01";
+  const end = year + "-12-31";
+  const url = HEBCAL_JOHANNESBURG_URL + "&start=" + encodeURIComponent(start) + "&end=" + encodeURIComponent(end);
+  const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  if (response.getResponseCode() >= 400) throw new Error("Could not fetch Johannesburg Shabbas times");
+  const times = parseHebcalTimes(JSON.parse(response.getContentText()));
+  cache.put("johannesburg-shabbas-" + year, JSON.stringify(times), 21600);
   return times;
 }
 
-function parseChabadTimes(html) {
-  const plain = html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\s+/g, " ");
-  const inMatch = plain.match(/Light Candles at\s+(\d{1,2}:\d{2})\s*([AP]M)/i);
-  const outMatch = plain.match(/Shabbat Ends\s+(\d{1,2}:\d{2})\s*([AP]M)/i);
+function parseHebcalTimes(payload) {
+  const items = (payload.items || [])
+    .filter((item) => item.category === "candles" || item.category === "havdalah")
+    .map((item) => ({
+      date: normalizeDate(item.date),
+      type: item.category === "candles" ? "in" : "out",
+      label: item.category === "candles" ? "Shabbas in" : "Shabbas out",
+      time: Utilities.formatDate(new Date(item.date), DEFAULT_SETTINGS.timezone, "HH:mm")
+    }));
+  const now = new Date();
+  const upcomingIn = items.find((item) => item.type === "in" && parseDate(item.date) >= new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+  const upcomingOut = items.find((item) => item.type === "out" && (!upcomingIn || parseDate(item.date) >= parseDate(upcomingIn.date)));
   return {
-    in: inMatch ? to24Hour(inMatch[1], inMatch[2]) : "--:--",
-    out: outMatch ? to24Hour(outMatch[1], outMatch[2]) : "--:--",
-    source: "Chabad.org/ShabbatTimes Johannesburg",
-    sourceUrl: CHABAD_JOHANNESBURG_URL,
+    in: upcomingIn ? upcomingIn.time : "--:--",
+    out: upcomingOut ? upcomingOut.time : "--:--",
+    times: items,
+    source: "Hebcal Johannesburg",
+    sourceUrl: "https://www.hebcal.com/",
     cachedAt: new Date().toISOString()
   };
-}
-
-function to24Hour(time, meridiem) {
-  const parts = time.split(":").map(Number);
-  let hour = parts[0];
-  if (/PM/i.test(meridiem) && hour !== 12) hour += 12;
-  if (/AM/i.test(meridiem) && hour === 12) hour = 0;
-  return String(hour).padStart(2, "0") + ":" + String(parts[1]).padStart(2, "0");
 }
 
 function readEvents(sheet) {
