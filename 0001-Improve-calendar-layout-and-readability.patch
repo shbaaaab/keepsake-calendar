@@ -1,0 +1,595 @@
+From d26a70c0f03f10fce62a98076cfccb805a8708b7 Mon Sep 17 00:00:00 2001
+From: Akiva Kahn <akivakahn@Akivas-MacBook-Air-3.local>
+Date: Fri, 12 Jun 2026 10:37:02 +0200
+Subject: [PATCH] Improve calendar layout and readability.
+
+Reorganize the sidebar, soften weekend colors, fix truncated labels, and add a rounded month outline on the grid.
+
+Co-authored-by: Cursor <cursoragent@cursor.com>
+---
+ app.js     |  83 +++++++++++++++++++++++++++---
+ index.html |  99 ++++++++++++++++++------------------
+ styles.css | 146 ++++++++++++++++++++++++++---------------------------
+ 3 files changed, 198 insertions(+), 130 deletions(-)
+
+diff --git a/app.js b/app.js
+index 4f77c5a..b05c87d 100644
+--- a/app.js
++++ b/app.js
+@@ -24,6 +24,7 @@ const state = {
+ const monthTitle = document.querySelector("#monthTitle");
+ const currentDateLabel = document.querySelector("#currentDateLabel");
+ const calendarGrid = document.querySelector("#calendarGrid");
++const monthOutlinePath = document.querySelector("#monthOutlinePath");
+ const agendaList = document.querySelector("#agendaList");
+ const syncText = document.querySelector("#syncText");
+ const shabbatIn = document.querySelector("#shabbatIn");
+@@ -342,7 +343,9 @@ function formatDate(date, compact = false) {
+ }
+ 
+ function formatCurrentDate(date = new Date()) {
+-  return date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
++  return date
++    .toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })
++    .replace(/ /g, "   ");
+ }
+ 
+ function countdownText(date) {
+@@ -363,6 +366,9 @@ function renderCalendar() {
+   calendarGrid.innerHTML = "";
+ 
+   const startOffset = first.getDay();
++  const daysThisMonth = daysInMonth(year, month);
++  renderMonthOutline(startOffset, daysThisMonth);
++
+   for (let index = 0; index < 42; index += 1) {
+     const date = new Date(year, month, index - startOffset + 1);
+     const eventsForDay = monthEvents.filter((item) => sameDay(item.date, date));
+@@ -393,7 +399,7 @@ function renderCalendar() {
+     shabbatItemsForDate(date).forEach((item) => {
+       const pill = document.createElement("span");
+       pill.className = `event-pill shabbat-pill ${item.type === "out" ? "shabbat-out" : "shabbat-in"}`;
+-      pill.textContent = `${item.label}: ${item.time}`;
++      pill.textContent = `${item.type === "out" ? "Out" : "In"}: ${item.time}`;
+       eventsWrap.append(pill);
+     });
+     cell.append(eventsWrap);
+@@ -401,6 +407,71 @@ function renderCalendar() {
+   }
+ }
+ 
++function roundedOutlinePath(points, radius = 0.14) {
++  const count = points.length;
++  if (count < 3) return "";
++
++  const corners = [];
++  for (let index = 0; index < count; index += 1) {
++    const prev = points[(index - 1 + count) % count];
++    const current = points[index];
++    const next = points[(index + 1) % count];
++    const inDx = current[0] - prev[0];
++    const inDy = current[1] - prev[1];
++    const outDx = next[0] - current[0];
++    const outDy = next[1] - current[1];
++    const inLen = Math.hypot(inDx, inDy) || 1;
++    const outLen = Math.hypot(outDx, outDy) || 1;
++    const cornerRadius = Math.min(radius, inLen / 2, outLen / 2);
++    corners.push({
++      start: [current[0] - (inDx / inLen) * cornerRadius, current[1] - (inDy / inLen) * cornerRadius],
++      end: [current[0] + (outDx / outLen) * cornerRadius, current[1] + (outDy / outLen) * cornerRadius]
++    });
++  }
++
++  let path = `M ${corners[0].start[0]} ${corners[0].start[1]}`;
++  corners.forEach((corner, index) => {
++    const vertex = points[index];
++    path += ` Q ${vertex[0]} ${vertex[1]} ${corner.end[0]} ${corner.end[1]}`;
++    const nextStart = corners[(index + 1) % count].start;
++    path += ` L ${nextStart[0]} ${nextStart[1]}`;
++  });
++  return `${path} Z`;
++}
++
++function renderMonthOutline(startOffset, monthDays) {
++  if (!monthOutlinePath) return;
++
++  const startCol = startOffset % 7;
++  const startRow = Math.floor(startOffset / 7);
++  const endIndex = startOffset + monthDays - 1;
++  const endRow = Math.floor(endIndex / 7);
++  const endCol = endIndex % 7;
++
++  let points;
++  if (startRow === endRow) {
++    points = [
++      [startCol, startRow],
++      [endCol + 1, startRow],
++      [endCol + 1, startRow + 1],
++      [startCol, startRow + 1]
++    ];
++  } else {
++    points = [
++      [startCol, startRow],
++      [7, startRow],
++      [7, endRow],
++      [endCol + 1, endRow],
++      [endCol + 1, endRow + 1],
++      [0, endRow + 1],
++      [0, startRow + 1],
++      [startCol, startRow + 1]
++    ];
++  }
++
++  monthOutlinePath.setAttribute("d", roundedOutlinePath(points));
++}
++
+ function shabbatItemsForDate(date) {
+   const entries = Array.isArray(state.shabbat?.times) ? state.shabbat.times : [];
+   const key = isoDate(date);
+@@ -412,8 +483,8 @@ function shabbatItemsForDate(date) {
+   friday.setDate(today.getDate() + ((5 - today.getDay() + 7) % 7));
+   const shabbas = new Date(friday);
+   shabbas.setDate(friday.getDate() + 1);
+-  if (sameDay(date, friday) && state.shabbat?.in && state.shabbat.in !== "--:--") fallback.push({ type: "in", label: "Shabbos in", time: state.shabbat.in });
+-  if (sameDay(date, shabbas) && state.shabbat?.out && state.shabbat.out !== "--:--") fallback.push({ type: "out", label: "Shabbos out", time: state.shabbat.out });
++  if (sameDay(date, friday) && state.shabbat?.in && state.shabbat.in !== "--:--") fallback.push({ type: "in", label: "In", time: state.shabbat.in });
++  if (sameDay(date, shabbas) && state.shabbat?.out && state.shabbat.out !== "--:--") fallback.push({ type: "out", label: "Out", time: state.shabbat.out });
+   return fallback;
+ }
+ 
+@@ -438,7 +509,7 @@ function parseHebcalShabbat(payload) {
+       return {
+         date: isoDate(date),
+         type: item.category === "candles" ? "in" : "out",
+-        label: item.category === "candles" ? "Shabbos in" : "Shabbos out",
++        label: item.category === "candles" ? "In" : "Out",
+         time: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
+       };
+     });
+@@ -494,7 +565,7 @@ function agendaItem(event, date) {
+   countdown.title = "Edit reminder";
+   countdown.addEventListener("click", () => openEditModal(event.id));
+ 
+-  row.append(body, meta, countdown);
++  row.append(body, countdown, meta);
+   row.addEventListener("click", (click) => {
+     if (click.target === countdown) return;
+     openEditModal(event.id);
+diff --git a/index.html b/index.html
+index f96397a..184ea59 100644
+--- a/index.html
++++ b/index.html
+@@ -14,25 +14,8 @@
+   </head>
+   <body>
+     <main class="app-shell">
+-      <header class="topbar">
+-        <div>
+-          <p class="eyebrow">The Calendar</p>
+-          <h1 id="monthTitle">Calendar</h1>
+-          <p class="sync-status" id="syncText" data-status="loading">Loading reminders</p>
+-        </div>
+-        <div class="top-actions">
+-          <button class="icon-btn" id="prevMonth" aria-label="Previous month" title="Previous month">
+-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+-          </button>
+-          <button class="text-btn" id="todayBtn">Today</button>
+-          <button class="icon-btn" id="nextMonth" aria-label="Next month" title="Next month">
+-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+-          </button>
+-        </div>
+-      </header>
+-
+       <section class="layout-grid">
+-        <aside class="side-panel next-panel" aria-label="Upcoming reminders">
++        <aside class="side-panel left-panel" aria-label="Reminders and settings">
+           <div class="shabbat-card" id="shabbatCard">
+             <div class="shabbat-row"><span>Shabbos in</span><strong id="shabbatIn">--:--</strong></div>
+             <div class="shabbat-row"><span>Shabbos out</span><strong id="shabbatOut">--:--</strong></div>
+@@ -44,49 +27,65 @@
+             </button>
+           </div>
+           <div class="agenda-list" id="agendaList"></div>
++
++          <div class="settings-block" aria-label="Settings">
++            <div class="section-head">
++              <h2>Settings</h2>
++            </div>
++            <label>
++              Google Apps Script URL
++              <input id="scriptUrl" type="url" placeholder="https://script.google.com/macros/s/..." />
++            </label>
++            <label>
++              Sync passcode
++              <input id="syncToken" autocomplete="off" placeholder="Optional but recommended" />
++            </label>
++            <label>
++              Email address
++              <input id="emailAddress" type="email" placeholder="you@gmail.com" />
++            </label>
++            <label>
++              Reminder time
++              <input id="reminderTime" type="time" value="04:00" />
++            </label>
++            <label>
++              Timezone
++              <input id="timezone" autocomplete="off" placeholder="Africa/Johannesburg" />
++            </label>
++            <p class="small-copy">Reminders, photos, settings, and Shabbos times sync through Google Sheets once the Apps Script URL is set.</p>
++            <button class="primary-btn" id="saveSettings">Save settings</button>
++            <button class="text-btn wide" id="syncNow">Sync from Google</button>
++            <button class="text-btn wide" id="sendTestEmail">Send Test Email</button>
++            <button class="text-btn wide" id="exportData">Export backup</button>
++            <p class="settings-result" id="settingsResult" role="status"></p>
++          </div>
++          <p class="sync-status" id="syncText" data-status="loading">Loading reminders</p>
+         </aside>
+ 
+         <section class="calendar-panel" aria-label="Calendar month">
++          <div class="calendar-header">
++            <div class="calendar-actions">
++              <button class="icon-btn" id="prevMonth" aria-label="Previous month" title="Previous month">
++                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
++              </button>
++              <button class="text-btn" id="todayBtn">Today</button>
++              <button class="icon-btn" id="nextMonth" aria-label="Next month" title="Next month">
++                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
++              </button>
++            </div>
++            <h2 class="month-title" id="monthTitle">Calendar</h2>
++          </div>
+           <p class="current-date-label" id="currentDateLabel">Today</p>
+           <div class="month-frame">
+             <div class="weekday-row">
+               <span>Sun</span><span>Mon</span><span>Tues</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Shabbos</span>
+             </div>
+             <div class="calendar-grid" id="calendarGrid"></div>
++            <svg class="month-outline" id="monthOutline" viewBox="0 0 7 6" preserveAspectRatio="none" aria-hidden="true">
++              <path id="monthOutlinePath"></path>
++            </svg>
+           </div>
+         </section>
+-
+-        <aside class="side-panel settings-panel" aria-label="Settings">
+-          <div class="section-head">
+-            <h2>Settings</h2>
+-          </div>
+-          <label>
+-            Google Apps Script URL
+-            <input id="scriptUrl" type="url" placeholder="https://script.google.com/macros/s/..." />
+-          </label>
+-          <label>
+-            Sync passcode
+-            <input id="syncToken" autocomplete="off" placeholder="Optional but recommended" />
+-          </label>
+-          <label>
+-            Email address
+-            <input id="emailAddress" type="email" placeholder="you@gmail.com" />
+-          </label>
+-          <label>
+-            Reminder time
+-            <input id="reminderTime" type="time" value="04:00" />
+-          </label>
+-          <label>
+-            Timezone
+-            <input id="timezone" autocomplete="off" placeholder="Africa/Johannesburg" />
+-          </label>
+-          <p class="small-copy">Reminders, photos, settings, and Shabbos times sync through Google Sheets once the Apps Script URL is set.</p>
+-          <button class="primary-btn" id="saveSettings">Save settings</button>
+-          <button class="text-btn wide" id="syncNow">Sync from Google</button>
+-          <button class="text-btn wide" id="sendTestEmail">Send Test Email</button>
+-          <button class="text-btn wide" id="exportData">Export backup</button>
+-          <p class="settings-result" id="settingsResult" role="status"></p>
+-        </aside>
+       </section>
+     </main>
+ 
+diff --git a/styles.css b/styles.css
+index 51a9023..1c49f5c 100644
+--- a/styles.css
++++ b/styles.css
+@@ -7,9 +7,9 @@
+   --text: #f5f1e8;
+   --muted: #a6a79f;
+   --teal: #75d5c8;
+-  --sky: #87b7d8;
++  --sky: #b4c8d6;
+   --rose: #ff8aa3;
+-  --amber: #ffd06b;
++  --amber: #d9c99a;
+   --violet: #bba3ff;
+   --danger: #ff6f74;
+   --shadow: 0 24px 70px rgba(0, 0, 0, .42);
+@@ -47,40 +47,19 @@ button {
+   padding: max(18px, env(safe-area-inset-top)) 14px max(18px, env(safe-area-inset-bottom));
+ }
+ 
+-.topbar, .section-head, .top-actions, .form-actions {
++.section-head, .calendar-actions, .form-actions {
+   display: flex;
+   align-items: center;
+ }
+ 
+-.topbar {
+-  justify-content: space-between;
+-  gap: 14px;
+-  margin-bottom: 18px;
+-}
+-
+-.eyebrow, .mini-label {
+-  margin: 0 0 3px;
+-  color: var(--teal);
+-  font-size: .78rem;
+-  font-weight: 800;
+-  text-transform: uppercase;
+-  letter-spacing: 0;
+-}
+-
+ .mini-label {
++  margin: 0 0 3px;
+   color: var(--muted);
+   font-size: .72rem;
+ }
+ 
+ h1, h2, p { margin-top: 0; }
+ 
+-h1 {
+-  margin-bottom: 0;
+-  font-size: clamp(1.7rem, 5vw, 3.4rem);
+-  line-height: 1;
+-  letter-spacing: 0;
+-}
+-
+ h2 {
+   margin-bottom: 0;
+   font-size: 1.08rem;
+@@ -89,7 +68,7 @@ h2 {
+ 
+ .sync-status {
+   width: fit-content;
+-  margin: 9px 0 0;
++  margin: 0;
+   border: 1px solid var(--line);
+   border-radius: 999px;
+   padding: 5px 9px;
+@@ -106,7 +85,7 @@ h2 {
+ 
+ .sync-status[data-status="saving"],
+ .sync-status[data-status="loading"] {
+-  border-color: rgba(255, 208, 107, .3);
++  border-color: rgba(217, 201, 154, .3);
+   color: var(--amber);
+ }
+ 
+@@ -115,9 +94,23 @@ h2 {
+   color: var(--danger);
+ }
+ 
+-.top-actions {
++.calendar-header {
++  display: grid;
+   gap: 8px;
+-  flex-shrink: 0;
++  margin-bottom: 10px;
++}
++
++.calendar-actions {
++  justify-content: center;
++  gap: 8px;
++}
++
++.month-title {
++  margin: 0;
++  color: var(--text);
++  font-size: clamp(1.2rem, 2.4vw, 1.65rem);
++  font-weight: 800;
++  text-align: center;
+ }
+ 
+ .icon-btn {
+@@ -178,7 +171,7 @@ h2 {
+ 
+ .layout-grid {
+   display: grid;
+-  grid-template-columns: minmax(260px, 320px) minmax(520px, 1fr) minmax(260px, 320px);
++  grid-template-columns: minmax(270px, 340px) minmax(520px, 1fr);
+   gap: 14px;
+   align-items: start;
+ }
+@@ -200,6 +193,13 @@ h2 {
+   padding: 14px;
+ }
+ 
++.settings-block {
++  display: grid;
++  gap: 0;
++  border-top: 1px solid var(--line);
++  padding-top: 12px;
++}
++
+ .calendar-panel {
+   overflow: hidden;
+   border-radius: 16px;
+@@ -212,15 +212,36 @@ h2 {
+   font-size: clamp(1.06rem, 1.9vw, 1.38rem);
+   font-weight: 700;
+   text-align: center;
++  word-spacing: .85em;
+ }
+ 
+ .month-frame {
++  position: relative;
+   overflow: hidden;
+   border: 1px solid rgba(245, 241, 232, .18);
+   border-radius: 16px;
+   background: rgba(255, 255, 255, .012);
+ }
+ 
++.month-outline {
++  position: absolute;
++  left: 0;
++  right: 0;
++  bottom: 0;
++  width: 100%;
++  height: calc(100% - 56px);
++  pointer-events: none;
++}
++
++.month-outline path {
++  fill: none;
++  stroke: rgba(245, 241, 232, .5);
++  stroke-width: .07;
++  stroke-linejoin: round;
++  stroke-linecap: round;
++  vector-effect: non-scaling-stroke;
++}
++
+ .weekday-row, .calendar-grid {
+   display: grid;
+   grid-template-columns: repeat(7, minmax(0, 1fr));
+@@ -262,7 +283,7 @@ h2 {
+ }
+ 
+ .day-cell:nth-child(7n), .day-cell:nth-child(7n + 1) {
+-  background: rgba(255, 255, 255, .04);
++  background: rgba(255, 255, 255, .025);
+ }
+ 
+ .day-cell:nth-child(7n + 1) .day-number { color: var(--sky); }
+@@ -286,36 +307,32 @@ h2 {
+ 
+ .day-events {
+   display: grid;
+-  gap: 4px;
++  gap: 3px;
+   margin-top: 5px;
+ }
+ 
+ .event-pill {
+-  overflow: hidden;
+-  min-height: 22px;
+-  border-radius: 6px;
+-  padding: 4px 6px;
++  min-height: 16px;
++  border-radius: 5px;
++  padding: 2px 4px;
+   background: rgba(117, 213, 200, .14);
+   color: #ddfffb;
+-  font-size: clamp(.62rem, .78vw, .72rem);
++  font-size: clamp(.5rem, .62vw, .6rem);
+   font-weight: 700;
+-  line-height: 1.15;
+-  text-overflow: ellipsis;
+-  white-space: nowrap;
++  line-height: 1.2;
++  white-space: normal;
++  overflow-wrap: anywhere;
+ }
+ 
+ .event-pill:hover {
+   background: rgba(117, 213, 200, .23);
+ }
+ 
+-.shabbat-pill {
+-  background: rgba(255, 208, 107, .13);
+-  color: #ffe7aa;
+-}
+-
++.shabbat-pill,
+ .shabbat-out {
+-  background: rgba(187, 163, 255, .13);
+-  color: #e0d5ff;
++  background: rgba(166, 167, 159, .14);
++  color: var(--muted);
++  font-weight: 600;
+ }
+ 
+ .section-head {
+@@ -331,7 +348,7 @@ h2 {
+ 
+ .agenda-item, .detail-item {
+   display: grid;
+-  grid-template-columns: minmax(0, 1fr) auto 58px;
++  grid-template-columns: minmax(0, 1fr) 58px auto;
+   align-items: center;
+   gap: 10px;
+   min-height: 68px;
+@@ -382,8 +399,9 @@ h2 {
+   display: grid;
+   place-items: center;
+   min-height: 48px;
++  min-width: 58px;
+   border-radius: 8px;
+-  background: rgba(255, 208, 107, .12);
++  background: rgba(217, 201, 154, .12);
+   color: var(--amber);
+   font-size: .82rem;
+   font-weight: 900;
+@@ -521,13 +539,7 @@ input:focus, select:focus, textarea:focus {
+ 
+ @media (max-width: 1120px) {
+   .layout-grid {
+-    grid-template-columns: minmax(230px, 280px) minmax(480px, 1fr);
+-  }
+-
+-  .settings-panel {
+-    grid-column: 1 / -1;
+-    position: static;
+-    max-height: none;
++    grid-template-columns: minmax(240px, 300px) minmax(460px, 1fr);
+   }
+ }
+ 
+@@ -536,16 +548,6 @@ input:focus, select:focus, textarea:focus {
+     padding: max(14px, env(safe-area-inset-top)) 10px max(18px, env(safe-area-inset-bottom));
+   }
+ 
+-  .topbar {
+-    align-items: flex-start;
+-    flex-direction: column;
+-  }
+-
+-  .top-actions {
+-    width: 100%;
+-    justify-content: space-between;
+-  }
+-
+   .layout-grid {
+     grid-template-columns: 1fr;
+   }
+@@ -560,14 +562,10 @@ input:focus, select:focus, textarea:focus {
+     padding: 8px;
+   }
+ 
+-  .next-panel {
++  .left-panel {
+     grid-row: 2;
+   }
+ 
+-  .settings-panel {
+-    grid-row: 3;
+-  }
+-
+   .day-cell {
+     min-height: 78px;
+     padding: 5px;
+@@ -579,13 +577,13 @@ input:focus, select:focus, textarea:focus {
+   }
+ 
+   .event-pill {
+-    min-height: 18px;
++    min-height: 14px;
+     padding: 2px 3px;
+-    font-size: .58rem;
++    font-size: .48rem;
+   }
+ 
+   .agenda-item {
+-    grid-template-columns: minmax(0, 1fr) auto 54px;
++    grid-template-columns: minmax(0, 1fr) 54px auto;
+   }
+ 
+   .thumb {
+-- 
+2.43.0
+

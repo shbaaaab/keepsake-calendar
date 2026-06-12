@@ -14,25 +14,8 @@
   </head>
   <body>
     <main class="app-shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">The Calendar</p>
-          <h1 id="monthTitle">Calendar</h1>
-          <p class="sync-status" id="syncText" data-status="loading">Loading reminders</p>
-        </div>
-        <div class="top-actions">
-          <button class="icon-btn" id="prevMonth" aria-label="Previous month" title="Previous month">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-          </button>
-          <button class="text-btn" id="todayBtn">Today</button>
-          <button class="icon-btn" id="nextMonth" aria-label="Next month" title="Next month">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
-          </button>
-        </div>
-      </header>
-
       <section class="layout-grid">
-        <aside class="side-panel next-panel" aria-label="Upcoming reminders">
+        <aside class="side-panel left-panel" aria-label="Reminders and settings">
           <div class="shabbat-card" id="shabbatCard">
             <div class="shabbat-row"><span>Shabbos in</span><strong id="shabbatIn">--:--</strong></div>
             <div class="shabbat-row"><span>Shabbos out</span><strong id="shabbatOut">--:--</strong></div>
@@ -44,49 +27,65 @@
             </button>
           </div>
           <div class="agenda-list" id="agendaList"></div>
+
+          <div class="settings-block" aria-label="Settings">
+            <div class="section-head">
+              <h2>Settings</h2>
+            </div>
+            <label>
+              Google Apps Script URL
+              <input id="scriptUrl" type="url" placeholder="https://script.google.com/macros/s/..." />
+            </label>
+            <label>
+              Sync passcode
+              <input id="syncToken" autocomplete="off" placeholder="Optional but recommended" />
+            </label>
+            <label>
+              Email address
+              <input id="emailAddress" type="email" placeholder="you@gmail.com" />
+            </label>
+            <label>
+              Reminder time
+              <input id="reminderTime" type="time" value="04:00" />
+            </label>
+            <label>
+              Timezone
+              <input id="timezone" autocomplete="off" placeholder="Africa/Johannesburg" />
+            </label>
+            <p class="small-copy">Reminders, photos, settings, and Shabbos times sync through Google Sheets once the Apps Script URL is set.</p>
+            <button class="primary-btn" id="saveSettings">Save settings</button>
+            <button class="text-btn wide" id="syncNow">Sync from Google</button>
+            <button class="text-btn wide" id="sendTestEmail">Send Test Email</button>
+            <button class="text-btn wide" id="exportData">Export backup</button>
+            <p class="settings-result" id="settingsResult" role="status"></p>
+          </div>
+          <p class="sync-status" id="syncText" data-status="loading">Loading reminders</p>
         </aside>
 
         <section class="calendar-panel" aria-label="Calendar month">
+          <div class="calendar-header">
+            <div class="calendar-actions">
+              <button class="icon-btn" id="prevMonth" aria-label="Previous month" title="Previous month">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <button class="text-btn" id="todayBtn">Today</button>
+              <button class="icon-btn" id="nextMonth" aria-label="Next month" title="Next month">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </div>
+            <h2 class="month-title" id="monthTitle">Calendar</h2>
+          </div>
           <p class="current-date-label" id="currentDateLabel">Today</p>
           <div class="month-frame">
             <div class="weekday-row">
               <span>Sun</span><span>Mon</span><span>Tues</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Shabbos</span>
             </div>
             <div class="calendar-grid" id="calendarGrid"></div>
+            <svg class="month-outline" id="monthOutline" viewBox="0 0 7 6" preserveAspectRatio="none" aria-hidden="true">
+              <path id="monthOutlinePath"></path>
+            </svg>
           </div>
         </section>
-
-        <aside class="side-panel settings-panel" aria-label="Settings">
-          <div class="section-head">
-            <h2>Settings</h2>
-          </div>
-          <label>
-            Google Apps Script URL
-            <input id="scriptUrl" type="url" placeholder="https://script.google.com/macros/s/..." />
-          </label>
-          <label>
-            Sync passcode
-            <input id="syncToken" autocomplete="off" placeholder="Optional but recommended" />
-          </label>
-          <label>
-            Email address
-            <input id="emailAddress" type="email" placeholder="you@gmail.com" />
-          </label>
-          <label>
-            Reminder time
-            <input id="reminderTime" type="time" value="04:00" />
-          </label>
-          <label>
-            Timezone
-            <input id="timezone" autocomplete="off" placeholder="Africa/Johannesburg" />
-          </label>
-          <p class="small-copy">Reminders, photos, settings, and Shabbos times sync through Google Sheets once the Apps Script URL is set.</p>
-          <button class="primary-btn" id="saveSettings">Save settings</button>
-          <button class="text-btn wide" id="syncNow">Sync from Google</button>
-          <button class="text-btn wide" id="sendTestEmail">Send Test Email</button>
-          <button class="text-btn wide" id="exportData">Export backup</button>
-          <p class="settings-result" id="settingsResult" role="status"></p>
-        </aside>
       </section>
     </main>
 

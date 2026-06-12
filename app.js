@@ -24,6 +24,7 @@ const state = {
 const monthTitle = document.querySelector("#monthTitle");
 const currentDateLabel = document.querySelector("#currentDateLabel");
 const calendarGrid = document.querySelector("#calendarGrid");
+const monthOutlinePath = document.querySelector("#monthOutlinePath");
 const agendaList = document.querySelector("#agendaList");
 const syncText = document.querySelector("#syncText");
 const shabbatIn = document.querySelector("#shabbatIn");
@@ -342,7 +343,9 @@ function formatDate(date, compact = false) {
 }
 
 function formatCurrentDate(date = new Date()) {
-  return date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+  return date
+    .toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })
+    .replace(/ /g, "   ");
 }
 
 function countdownText(date) {
@@ -363,6 +366,9 @@ function renderCalendar() {
   calendarGrid.innerHTML = "";
 
   const startOffset = first.getDay();
+  const daysThisMonth = daysInMonth(year, month);
+  renderMonthOutline(startOffset, daysThisMonth);
+
   for (let index = 0; index < 42; index += 1) {
     const date = new Date(year, month, index - startOffset + 1);
     const eventsForDay = monthEvents.filter((item) => sameDay(item.date, date));
@@ -393,12 +399,77 @@ function renderCalendar() {
     shabbatItemsForDate(date).forEach((item) => {
       const pill = document.createElement("span");
       pill.className = `event-pill shabbat-pill ${item.type === "out" ? "shabbat-out" : "shabbat-in"}`;
-      pill.textContent = `${item.label}: ${item.time}`;
+      pill.textContent = `${item.type === "out" ? "Out" : "In"}: ${item.time}`;
       eventsWrap.append(pill);
     });
     cell.append(eventsWrap);
     calendarGrid.append(cell);
   }
+}
+
+function roundedOutlinePath(points, radius = 0.14) {
+  const count = points.length;
+  if (count < 3) return "";
+
+  const corners = [];
+  for (let index = 0; index < count; index += 1) {
+    const prev = points[(index - 1 + count) % count];
+    const current = points[index];
+    const next = points[(index + 1) % count];
+    const inDx = current[0] - prev[0];
+    const inDy = current[1] - prev[1];
+    const outDx = next[0] - current[0];
+    const outDy = next[1] - current[1];
+    const inLen = Math.hypot(inDx, inDy) || 1;
+    const outLen = Math.hypot(outDx, outDy) || 1;
+    const cornerRadius = Math.min(radius, inLen / 2, outLen / 2);
+    corners.push({
+      start: [current[0] - (inDx / inLen) * cornerRadius, current[1] - (inDy / inLen) * cornerRadius],
+      end: [current[0] + (outDx / outLen) * cornerRadius, current[1] + (outDy / outLen) * cornerRadius]
+    });
+  }
+
+  let path = `M ${corners[0].start[0]} ${corners[0].start[1]}`;
+  corners.forEach((corner, index) => {
+    const vertex = points[index];
+    path += ` Q ${vertex[0]} ${vertex[1]} ${corner.end[0]} ${corner.end[1]}`;
+    const nextStart = corners[(index + 1) % count].start;
+    path += ` L ${nextStart[0]} ${nextStart[1]}`;
+  });
+  return `${path} Z`;
+}
+
+function renderMonthOutline(startOffset, monthDays) {
+  if (!monthOutlinePath) return;
+
+  const startCol = startOffset % 7;
+  const startRow = Math.floor(startOffset / 7);
+  const endIndex = startOffset + monthDays - 1;
+  const endRow = Math.floor(endIndex / 7);
+  const endCol = endIndex % 7;
+
+  let points;
+  if (startRow === endRow) {
+    points = [
+      [startCol, startRow],
+      [endCol + 1, startRow],
+      [endCol + 1, startRow + 1],
+      [startCol, startRow + 1]
+    ];
+  } else {
+    points = [
+      [startCol, startRow],
+      [7, startRow],
+      [7, endRow],
+      [endCol + 1, endRow],
+      [endCol + 1, endRow + 1],
+      [0, endRow + 1],
+      [0, startRow + 1],
+      [startCol, startRow + 1]
+    ];
+  }
+
+  monthOutlinePath.setAttribute("d", roundedOutlinePath(points));
 }
 
 function shabbatItemsForDate(date) {
@@ -412,8 +483,8 @@ function shabbatItemsForDate(date) {
   friday.setDate(today.getDate() + ((5 - today.getDay() + 7) % 7));
   const shabbas = new Date(friday);
   shabbas.setDate(friday.getDate() + 1);
-  if (sameDay(date, friday) && state.shabbat?.in && state.shabbat.in !== "--:--") fallback.push({ type: "in", label: "Shabbos in", time: state.shabbat.in });
-  if (sameDay(date, shabbas) && state.shabbat?.out && state.shabbat.out !== "--:--") fallback.push({ type: "out", label: "Shabbos out", time: state.shabbat.out });
+  if (sameDay(date, friday) && state.shabbat?.in && state.shabbat.in !== "--:--") fallback.push({ type: "in", label: "In", time: state.shabbat.in });
+  if (sameDay(date, shabbas) && state.shabbat?.out && state.shabbat.out !== "--:--") fallback.push({ type: "out", label: "Out", time: state.shabbat.out });
   return fallback;
 }
 
@@ -438,7 +509,7 @@ function parseHebcalShabbat(payload) {
       return {
         date: isoDate(date),
         type: item.category === "candles" ? "in" : "out",
-        label: item.category === "candles" ? "Shabbos in" : "Shabbos out",
+        label: item.category === "candles" ? "In" : "Out",
         time: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
       };
     });
@@ -494,7 +565,7 @@ function agendaItem(event, date) {
   countdown.title = "Edit reminder";
   countdown.addEventListener("click", () => openEditModal(event.id));
 
-  row.append(body, meta, countdown);
+  row.append(body, countdown, meta);
   row.addEventListener("click", (click) => {
     if (click.target === countdown) return;
     openEditModal(event.id);
