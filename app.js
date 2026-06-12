@@ -22,13 +22,12 @@ const state = {
 };
 
 const monthTitle = document.querySelector("#monthTitle");
+const currentDateLabel = document.querySelector("#currentDateLabel");
 const calendarGrid = document.querySelector("#calendarGrid");
 const agendaList = document.querySelector("#agendaList");
-const dayDetail = document.querySelector("#dayDetail");
 const syncText = document.querySelector("#syncText");
 const shabbatIn = document.querySelector("#shabbatIn");
 const shabbatOut = document.querySelector("#shabbatOut");
-const shabbatSource = document.querySelector("#shabbatSource");
 const settingsResult = document.querySelector("#settingsResult");
 const modal = document.querySelector("#modal");
 const dayModal = document.querySelector("#dayModal");
@@ -181,6 +180,7 @@ async function loadRemoteData() {
   state.events = Array.isArray(payload.events) ? payload.events.map(normalizeEvent) : [];
   state.settings = { ...defaultSettings, ...(payload.settings || {}) };
   state.shabbat = payload.shabbat || state.shabbat;
+  if (!hasUsableShabbatData(state.shabbat)) state.shabbat = await fetchShabbatFallback().catch(() => state.shabbat);
   saveCache();
   populateSettings();
   setSync("synced", "Synced");
@@ -341,6 +341,10 @@ function formatDate(date, compact = false) {
     : { weekday: "long", day: "numeric", month: "long" });
 }
 
+function formatCurrentDate(date = new Date()) {
+  return date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+}
+
 function countdownText(date) {
   const days = dayDiff(new Date(), date);
   if (days === 0) return "Today";
@@ -355,6 +359,7 @@ function renderCalendar() {
   const today = new Date();
   const monthEvents = occurrencesInMonth(year, month);
   monthTitle.textContent = first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  currentDateLabel.textContent = formatCurrentDate();
   calendarGrid.innerHTML = "";
 
   const startOffset = first.getDay();
@@ -365,6 +370,7 @@ function renderCalendar() {
     cell.className = "day-cell";
     cell.type = "button";
     if (date.getMonth() !== month) cell.classList.add("outside");
+    else cell.classList.add("current-month");
     if (sameDay(date, today)) cell.classList.add("today");
     if (eventsForDay.length) {
       cell.classList.add("has-events");
@@ -406,9 +412,47 @@ function shabbatItemsForDate(date) {
   friday.setDate(today.getDate() + ((5 - today.getDay() + 7) % 7));
   const shabbas = new Date(friday);
   shabbas.setDate(friday.getDate() + 1);
-  if (sameDay(date, friday) && state.shabbat?.in) fallback.push({ type: "in", label: "Shabbas in", time: state.shabbat.in });
-  if (sameDay(date, shabbas) && state.shabbat?.out) fallback.push({ type: "out", label: "Shabbas out", time: state.shabbat.out });
+  if (sameDay(date, friday) && state.shabbat?.in && state.shabbat.in !== "--:--") fallback.push({ type: "in", label: "Shabbos in", time: state.shabbat.in });
+  if (sameDay(date, shabbas) && state.shabbat?.out && state.shabbat.out !== "--:--") fallback.push({ type: "out", label: "Shabbos out", time: state.shabbat.out });
   return fallback;
+}
+
+function hasUsableShabbatData(data) {
+  return !!data && ((data.in && data.in !== "--:--") || (data.out && data.out !== "--:--") || (Array.isArray(data.times) && data.times.length));
+}
+
+async function fetchShabbatFallback() {
+  const year = new Date().getFullYear();
+  const url = `https://www.hebcal.com/hebcal?v=1&cfg=json&c=on&geo=geoname&geonameid=993800&M=on&leyning=off&start=${year}-01-01&end=${year}-12-31`;
+  const response = await fetch(url, { cache: "force-cache" });
+  if (!response.ok) throw new Error("Could not fetch Shabbos times");
+  const payload = await response.json();
+  return parseHebcalShabbat(payload);
+}
+
+function parseHebcalShabbat(payload) {
+  const items = (payload.items || [])
+    .filter((item) => item.category === "candles" || item.category === "havdalah")
+    .map((item) => {
+      const date = new Date(item.date);
+      return {
+        date: isoDate(date),
+        type: item.category === "candles" ? "in" : "out",
+        label: item.category === "candles" ? "Shabbos in" : "Shabbos out",
+        time: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })
+      };
+    });
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const upcomingIn = items.find((item) => item.type === "in" && parseLocalDate(item.date) >= startOfToday);
+  const upcomingOut = items.find((item) => item.type === "out" && (!upcomingIn || parseLocalDate(item.date) >= parseLocalDate(upcomingIn.date)));
+  return {
+    in: upcomingIn?.time || "--:--",
+    out: upcomingOut?.time || "--:--",
+    times: items,
+    source: "Hebcal",
+    cachedAt: new Date().toISOString()
+  };
 }
 
 function upcomingItems(limit = 50) {
@@ -433,24 +477,15 @@ function agendaItem(event, date) {
   const row = document.createElement("article");
   row.className = "agenda-item";
 
-  const visual = event.photo ? document.createElement("img") : document.createElement("div");
-  if (event.photo) {
-    visual.className = "thumb";
-    visual.src = event.photo;
-    visual.alt = "";
-  } else {
-    visual.className = "date-chip";
-    visual.textContent = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  }
-
   const body = document.createElement("div");
+  body.className = "agenda-body";
   const title = document.createElement("p");
   title.className = "agenda-title";
   title.textContent = eventLabel(event, date);
   const meta = document.createElement("p");
   meta.className = "agenda-meta";
-  meta.textContent = `${formatDate(date, true)} · ${event.repeat[0].toUpperCase()}${event.repeat.slice(1)}`;
-  body.append(title, meta);
+  meta.textContent = formatDate(date, true);
+  body.append(title);
 
   const countdown = document.createElement("button");
   countdown.className = "countdown";
@@ -459,7 +494,7 @@ function agendaItem(event, date) {
   countdown.title = "Edit reminder";
   countdown.addEventListener("click", () => openEditModal(event.id));
 
-  row.append(visual, body, countdown);
+  row.append(body, meta, countdown);
   row.addEventListener("click", (click) => {
     if (click.target === countdown) return;
     openEditModal(event.id);
@@ -467,50 +502,7 @@ function agendaItem(event, date) {
   return row;
 }
 
-function renderDayDetail(date, items) {
-  dayDetail.innerHTML = "";
-  const label = document.createElement("p");
-  label.className = "mini-label";
-  label.textContent = formatDate(date);
-  const list = document.createElement("div");
-  list.className = "detail-list";
-  items
-    .sort((a, b) => a.event.name.localeCompare(b.event.name))
-    .forEach((item) => {
-      const row = document.createElement("article");
-      row.className = "detail-item";
-      const body = document.createElement("div");
-      const title = document.createElement("p");
-      title.className = "agenda-title";
-      title.textContent = eventLabel(item.event, item.date);
-      const meta = document.createElement("p");
-      meta.className = "agenda-meta";
-      meta.textContent = `${item.event.repeat[0].toUpperCase()}${item.event.repeat.slice(1)}`;
-      body.append(title, meta);
-      const edit = document.createElement("button");
-      edit.className = "icon-btn";
-      edit.type = "button";
-      edit.ariaLabel = "Edit reminder";
-      edit.title = "Edit reminder";
-      edit.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
-      edit.addEventListener("click", () => openEditModal(item.event.id));
-      row.append(body, edit);
-      if (item.event.photo) {
-        const photo = document.createElement("img");
-        photo.className = "thumb";
-        photo.src = item.event.photo;
-        photo.alt = "";
-        row.prepend(photo);
-        row.style.gridTemplateColumns = "54px minmax(0, 1fr) 44px";
-      }
-      list.append(row);
-    });
-  dayDetail.append(label, list);
-  dayDetail.scrollIntoView({ behavior: "smooth", block: "nearest" });
-}
-
 function openDayPopup(date, items) {
-  renderDayDetail(date, items);
   dayModalTitle.textContent = formatDate(date);
   dayModalList.innerHTML = "";
   items
@@ -531,7 +523,7 @@ function openDayPopup(date, items) {
       title.textContent = eventLabel(item.event, item.date);
       const meta = document.createElement("p");
       meta.className = "agenda-meta";
-      meta.textContent = `${formatDate(item.date, true)} · ${item.event.repeat[0].toUpperCase()}${item.event.repeat.slice(1)}`;
+      meta.textContent = formatDate(item.date, true);
       body.append(title, meta);
       row.append(body);
       dayModalList.append(row);
@@ -543,12 +535,10 @@ function renderShabbat() {
   if (!state.shabbat) {
     shabbatIn.textContent = "--:--";
     shabbatOut.textContent = "--:--";
-    shabbatSource.textContent = "Johannesburg times";
     return;
   }
   shabbatIn.textContent = state.shabbat.in || "--:--";
   shabbatOut.textContent = state.shabbat.out || "--:--";
-  shabbatSource.textContent = "Johannesburg times";
 }
 
 function openAddModal(date = isoDate(new Date())) {
@@ -686,7 +676,9 @@ eventDate.addEventListener("blur", () => {
   eventDate.value = normalizeDateInput(eventDate.value);
 });
 
-document.querySelector("#closeDayModal").addEventListener("click", () => dayModal.close());
+dayModal.addEventListener("click", (event) => {
+  if (event.target === dayModal) dayModal.close();
+});
 
 eventForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -722,6 +714,16 @@ async function boot() {
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+
+  if (!hasUsableShabbatData(state.shabbat)) {
+    await fetchShabbatFallback()
+      .then((data) => {
+        state.shabbat = data;
+        saveCache();
+        rerender();
+      })
+      .catch(() => {});
   }
 
   await loadRemoteData()

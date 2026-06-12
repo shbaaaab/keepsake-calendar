@@ -184,7 +184,7 @@ function getCachedShabbatTimes() {
   const end = year + "-12-31";
   const url = HEBCAL_JOHANNESBURG_URL + "&start=" + encodeURIComponent(start) + "&end=" + encodeURIComponent(end);
   const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
-  if (response.getResponseCode() >= 400) throw new Error("Could not fetch Johannesburg Shabbas times");
+  if (response.getResponseCode() >= 400) throw new Error("Could not fetch Johannesburg Shabbos times");
   const times = parseHebcalTimes(JSON.parse(response.getContentText()));
   cache.put("johannesburg-shabbas-" + year, JSON.stringify(times), 21600);
   return times;
@@ -196,7 +196,7 @@ function parseHebcalTimes(payload) {
     .map((item) => ({
       date: normalizeDate(item.date),
       type: item.category === "candles" ? "in" : "out",
-      label: item.category === "candles" ? "Shabbas in" : "Shabbas out",
+      label: item.category === "candles" ? "Shabbos in" : "Shabbos out",
       time: Utilities.formatDate(new Date(item.date), DEFAULT_SETTINGS.timezone, "HH:mm")
     }));
   const now = new Date();

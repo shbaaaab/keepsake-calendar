@@ -1,6 +1,6 @@
 # The Calendar
 
-The Calendar is a small installable calendar app for birthdays, anniversaries, photos, and Johannesburg Shabbas times.
+The Calendar is a small installable calendar app for birthdays, anniversaries, photos, and Johannesburg Shabbos times.
 
 The recommended setup is:
 
@@ -15,7 +15,7 @@ That keeps the app free, iPhone-friendly, backed up in Google Sheets, and able t
 - `index.html`, `styles.css`, `app.js`: the app
 - `config.js`: optional place to paste your Apps Script web-app URL
 - `manifest.webmanifest`, `sw.js`, icons: iPhone home-screen/PWA support
-- `email-reminders.google-apps-script.js`: Google Sheets + Gmail + Shabbas backend
+- `email-reminders.google-apps-script.js`: Google Sheets + Gmail + Shabbos backend
 
 ## Current Features
 
@@ -25,7 +25,7 @@ That keeps the app free, iPhone-friendly, backed up in Google Sheets, and able t
 - Countdown labels in Next Up
 - Reminder photos, compressed in the browser before saving
 - Google Sheets sync for reminders, settings, and photos
-- Johannesburg Shabbas candle-lighting and Havdalah times
+- Johannesburg Shabbos candle-lighting and Havdalah times
 - Test email button in Settings
 
 ## 1. Publish The App
@@ -109,7 +109,7 @@ Once test emails are reliable, reminder emails can be expanded further.
 
 The older daily reminder function is still available as `sendTodaysCalendarReminders`. To enable it manually, run `createCalendarMorningTrigger` once in Apps Script. Google time triggers run near the selected hour, not always exactly on the minute.
 
-## 6. Shabbas Times
+## 6. Shabbos Times
 
 The Calendar fetches Johannesburg candle-lighting and Havdalah times from Hebcal's JSON API:
 
@@ -117,7 +117,7 @@ The Calendar fetches Johannesburg candle-lighting and Havdalah times from Hebcal
 https://www.hebcal.com/hebcal?v=1&cfg=json&c=on&geo=geoname&geonameid=993800&M=on
 ```
 
-Apps Script uses `UrlFetchApp` to fetch structured yearly Johannesburg entries and `CacheService` to cache the current result for 6 hours. The app also caches the last synced Shabbas times locally so it still has something to display if temporarily offline. Hebcal API data is licensed under Creative Commons Attribution 4.0.
+Apps Script uses `UrlFetchApp` to fetch structured yearly Johannesburg entries and `CacheService` to cache the current result for 6 hours. The app also caches the last synced Shabbos times locally so it still has something to display if temporarily offline. Hebcal API data is licensed under Creative Commons Attribution 4.0.
 
 ## Notes On Photos
 

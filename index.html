@@ -33,30 +33,27 @@
 
       <section class="layout-grid">
         <aside class="side-panel next-panel" aria-label="Upcoming reminders">
+          <div class="shabbat-card" id="shabbatCard">
+            <div class="shabbat-row"><span>Shabbos in</span><strong id="shabbatIn">--:--</strong></div>
+            <div class="shabbat-row"><span>Shabbos out</span><strong id="shabbatOut">--:--</strong></div>
+          </div>
           <div class="section-head">
             <h2>Next Up</h2>
             <button class="icon-btn soft" id="openAdd" aria-label="Add reminder" title="Add reminder">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             </button>
           </div>
-          <div class="shabbat-card" id="shabbatCard">
-            <p class="mini-label">Johannesburg</p>
-            <div class="shabbat-row"><span>Shabbas in</span><strong id="shabbatIn">--:--</strong></div>
-            <div class="shabbat-row"><span>Shabbas out</span><strong id="shabbatOut">--:--</strong></div>
-            <p class="small-copy" id="shabbatSource">Johannesburg times</p>
-          </div>
           <div class="agenda-list" id="agendaList"></div>
-          <div class="day-detail" id="dayDetail">
-            <p class="mini-label">Day Details</p>
-            <p class="empty compact">Tap a reminder on the calendar.</p>
-          </div>
         </aside>
 
         <section class="calendar-panel" aria-label="Calendar month">
-          <div class="weekday-row">
-            <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Shabbas</span>
+          <p class="current-date-label" id="currentDateLabel">Today</p>
+          <div class="month-frame">
+            <div class="weekday-row">
+              <span>Sun</span><span>Mon</span><span>Tues</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Shabbos</span>
+            </div>
+            <div class="calendar-grid" id="calendarGrid"></div>
           </div>
-          <div class="calendar-grid" id="calendarGrid"></div>
         </section>
 
         <aside class="side-panel settings-panel" aria-label="Settings">
@@ -83,7 +80,7 @@
             Timezone
             <input id="timezone" autocomplete="off" placeholder="Africa/Johannesburg" />
           </label>
-          <p class="small-copy">Reminders, photos, settings, and Shabbas times sync through Google Sheets once the Apps Script URL is set.</p>
+          <p class="small-copy">Reminders, photos, settings, and Shabbos times sync through Google Sheets once the Apps Script URL is set.</p>
           <button class="primary-btn" id="saveSettings">Save settings</button>
           <button class="text-btn wide" id="syncNow">Sync from Google</button>
           <button class="text-btn wide" id="sendTestEmail">Send Test Email</button>
@@ -135,9 +132,6 @@
       <div class="modal-card">
         <div class="section-head">
           <h2 id="dayModalTitle">Day</h2>
-          <button class="icon-btn" id="closeDayModal" aria-label="Close" title="Close">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-          </button>
         </div>
         <div class="day-popup-list" id="dayModalList"></div>
       </div>

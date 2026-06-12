@@ -1,4 +1,4 @@
-const cacheName = "the-calendar-v4";
+const cacheName = "the-calendar-v5";
 const assets = [
   "./",
   "./index.html",

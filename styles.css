@@ -7,7 +7,7 @@
   --text: #f5f1e8;
   --muted: #a6a79f;
   --teal: #75d5c8;
-  --sky: #9fd7ff;
+  --sky: #87b7d8;
   --rose: #ff8aa3;
   --amber: #ffd06b;
   --violet: #bba3ff;
@@ -202,6 +202,23 @@ h2 {
 
 .calendar-panel {
   overflow: hidden;
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.current-date-label {
+  margin: 0 0 12px;
+  color: var(--text);
+  font-size: clamp(1.06rem, 1.9vw, 1.38rem);
+  font-weight: 700;
+  text-align: center;
+}
+
+.month-frame {
+  overflow: hidden;
+  border: 1px solid rgba(245, 241, 232, .18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .012);
 }
 
 .weekday-row, .calendar-grid {
@@ -215,9 +232,9 @@ h2 {
 }
 
 .weekday-row span {
-  padding: 15px 4px;
+  padding: 16px 4px;
   color: var(--muted);
-  font-size: clamp(.98rem, 1.35vw, 1.14rem);
+  font-size: clamp(1.05rem, 1.45vw, 1.24rem);
   font-weight: 900;
   text-align: center;
 }
@@ -281,7 +298,7 @@ h2 {
   background: rgba(117, 213, 200, .14);
   color: #ddfffb;
   font-size: clamp(.62rem, .78vw, .72rem);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -314,7 +331,7 @@ h2 {
 
 .agenda-item, .detail-item {
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr) 50px;
+  grid-template-columns: minmax(0, 1fr) auto 58px;
   align-items: center;
   gap: 10px;
   min-height: 68px;
@@ -336,29 +353,29 @@ h2 {
   background: rgba(255, 255, 255, .06);
 }
 
-.date-chip {
-  display: grid;
-  place-items: center;
-  min-height: 48px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, .06);
-  color: var(--teal);
-  font-size: .82rem;
-  font-weight: 900;
-  text-align: center;
-}
-
 .agenda-title {
   margin: 0;
   overflow-wrap: anywhere;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .agenda-meta, .small-copy {
-  margin: 3px 0 0;
+  margin: 0;
   color: var(--muted);
   font-size: .84rem;
   line-height: 1.35;
+}
+
+.agenda-body {
+  min-width: 0;
+}
+
+.agenda-item .agenda-meta {
+  justify-self: end;
+  color: var(--text);
+  font-size: .78rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .countdown {
@@ -540,6 +557,7 @@ input:focus, select:focus, textarea:focus {
 
   .calendar-panel {
     grid-row: 1;
+    padding: 8px;
   }
 
   .next-panel {
@@ -556,8 +574,8 @@ input:focus, select:focus, textarea:focus {
   }
 
   .weekday-row span {
-    padding: 11px 1px;
-    font-size: .86rem;
+    padding: 12px 1px;
+    font-size: .94rem;
   }
 
   .event-pill {
@@ -567,7 +585,7 @@ input:focus, select:focus, textarea:focus {
   }
 
   .agenda-item {
-    grid-template-columns: 48px minmax(0, 1fr) 48px;
+    grid-template-columns: minmax(0, 1fr) auto 54px;
   }
 
   .thumb {
